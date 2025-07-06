@@ -36,6 +36,7 @@ public class PillagerOutpostChest extends RandomizableContainer {
                 .register(new ItemEntry(Item.ARROW, 0, 7, 2, 4))
                 .register(new ItemEntry(Item.TRIPWIRE_HOOK, 0, 3, 3))
                 .register(new ItemEntry(Item.IRON_INGOT, 0, 3, 3))
+                .register(new ItemEntry(Item.TOTEM, 0, 1, 0))
                 .register(new ItemEntry(Item.ENCHANT_BOOK, 1)); //TODO: enchant_randomly
         this.pools.put(pool4.build(), new RollEntry(3, 2, pool4.getTotalWeight()));
     }
