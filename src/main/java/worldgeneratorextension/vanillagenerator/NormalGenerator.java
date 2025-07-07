@@ -38,7 +38,7 @@ public class NormalGenerator extends Generator {
     public static final int TYPE_LARGE_BIOMES = 5;
     public static final int TYPE_AMPLIFIED = 6;
 
-    public static int SEA_LEVEL = 64; // 64 generates water normally at y 62
+    public static int SEA_LEVEL = 63; // 64 generates water normally at y 62
 
     /**
      * The biome maps used to fill chunks biome grid and terrain generation.
