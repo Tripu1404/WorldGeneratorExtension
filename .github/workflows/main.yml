@@ -25,7 +25,7 @@ jobs:
       run: |
         mkdir -p libs
         # Descargamos la última build estable de Nukkit de un mirror confiable o Jenkins
-        curl -L -o libs/nukkit.jar https://repo.opencollab.dev/maven-snapshots/cn/nukkit/nukkit/1.0-SNAPSHOT/nukkit-1.0-20251220.204542-1227.jar
+        curl -L -o libs/nukkit.jar https://github.com/PetteriM1/NukkitPetteriM1Edition/releases/download/4299/Nukkit-PM1E.jar
 
     - name: Compile Plugin
       run: |
