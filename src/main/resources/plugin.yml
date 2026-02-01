@@ -1,5 +1,5 @@
 name: WorldGeneratorExtension
 main: worldgeneratorextension.Loader
-version: "${pom.version}"
+version: "1.0.0"  <-- CAMBIO IMPORTANTE: Pon un número real, no la variable ${...}
 api: ["1.1.0"]
 load: STARTUP
