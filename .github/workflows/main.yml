@@ -36,8 +36,11 @@ jobs:
 
     - name: Package JAR
       run: |
-        # Copiamos el plugin.yml y otros recursos al directorio de salida
-        cp src/main/resources/plugin.yml out/ 2>/dev/null || echo "No plugin.yml found in resources"
+        # --- CORRECCION CRITICA ---
+        # Usamos cp -r (recursivo) con asterisco (*) para copiar TODO lo que hay en resources.
+        # Esto incluye plugin.yml, pero tambien las carpetas structures, fossils y archivos .nbt
+        cp -r src/main/resources/* out/
+        
         cd out
         # Creamos el archivo JAR final
         jar cvf ../WorldGeneratorExtension.jar .
@@ -46,4 +49,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: WorldGeneratorExtension-Binary
+        path: WorldGeneratorExtension.jar
         path: WorldGeneratorExtension.jar
