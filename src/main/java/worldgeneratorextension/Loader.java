@@ -74,6 +74,7 @@ public class Loader extends PluginBase implements Listener {
             Generator.addGenerator(NormalGenerator.class, "normal", NormalGenerator.TYPE_INFINITE);
         }
 
+        // Inicializadores
         PopulatorFossil.init();
         PopulatorShipwreck.init();
         PopulatorIgloo.init();
@@ -88,6 +89,7 @@ public class Loader extends PluginBase implements Listener {
         NetherBridgePieces.init();
         PopulatorNetherFossil.init();
 
+        // Overworld Populators
         populatorsOverworld.add(new PopulatorAmethystGeode());
         populatorsOverworld.add(new PopulatorFossil());
         populatorsOverworld.add(new PopulatorShipwreck());
@@ -106,17 +108,37 @@ public class Loader extends PluginBase implements Listener {
         populatorsOverworld.add(new PopulatorDungeon());
         populatorsOverworld.add(new PopulatorCoralCrust());
         populatorsOverworld.add(new PopulatorTreasureChest());
+        
+        // Nether Populators
         populatorsNether.add(new PopulatorNetherFortress());
         populatorsNether.add(new PopulatorNetherFossil());
 
         getServer().getPluginManager().registerEvents(this, this);
     }
 
+    /**
+     * Carga un archivo NBT de los recursos de forma segura.
+     * Si no existe, retorna un tag vacío en lugar de crashear el servidor.
+     */
     public static CompoundTag loadNBT(String path) {
+        // Asegura compatibilidad con getResourceAsStream
+        if (path.startsWith("/")) {
+             path = path.substring(1);
+        }
+
         try (InputStream inputStream = Loader.class.getClassLoader().getResourceAsStream(path)) {
+            // CORRECCIÓN 1: Verificar si el archivo existe (no es null)
+            if (inputStream == null) {
+                if (INSTANCE != null) {
+                    INSTANCE.getLogger().error("No se pudo encontrar el archivo de estructura: " + path + ". Verifica que el archivo exista en src/main/resources/");
+                } else {
+                    System.err.println("WorldGeneratorExtension: No se pudo encontrar el archivo: " + path);
+                }
+                return new CompoundTag(); // Retorna vacío para evitar NullPointerException
+            }
             return NBTIO.readCompressed(inputStream);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error al leer el archivo NBT: " + path, e);
         }
     }
 
@@ -155,15 +177,21 @@ public class Loader extends PluginBase implements Listener {
     }
 
     public static RuntimeItemMapping getRuntimeItemMapptings() {
+        // CORRECCIÓN 2: Eliminado el argumento 419 que causaba error de compilación
         if ("Nukkit PetteriM1 Edition".equals(Server.getInstance().getName())) {
-            return RuntimeItems.getMapping(419);
+            return RuntimeItems.getMapping(); 
         }
 
         try {
-            //noinspection JavaReflectionMemberAccess
+            // Intento genérico usando reflexión por si acaso
             return (RuntimeItemMapping) Class.forName("cn.nukkit.item.RuntimeItems").getMethod("getMapping").invoke(null);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to get RuntimeItemMapping", e);
+            // Si todo falla, intentamos la llamada directa estándar actualizada
+            try {
+                return RuntimeItems.getMapping();
+            } catch (Exception ex) {
+                throw new RuntimeException("Failed to get RuntimeItemMapping", ex);
+            }
         }
     }
 
@@ -184,7 +212,7 @@ public class Loader extends PluginBase implements Listener {
                 long x = chunkX + cx;
                 long z = chunkZ + cz;
 
-                if (Math.pow(x, 2) + Math.pow(z, 2) > 4096 && islandNoise.noise(x, z) < -0.8999999761581421) { // 0.9f / 1.0d
+                if (Math.pow(x, 2) + Math.pow(z, 2) > 4096 && islandNoise.noise(x, z) < -0.8999999761581421) { 
                     xx = 1 - (cx << 1);
                     zz = 1 - (cz << 1);
                     float height2 = (float) (100 - Math.sqrt(Math.pow(xx, 2) + Math.pow(zz, 2)) * ((Math.abs(x) * 3439 + Math.abs(z) * 147) % 13 + 9));
