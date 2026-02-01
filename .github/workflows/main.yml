@@ -24,30 +24,24 @@ jobs:
     - name: Download Nukkit API
       run: |
         mkdir -p libs
-        # Descargamos la última build estable de Nukkit de un mirror confiable o Jenkins
         curl -L -o libs/nukkit.jar https://github.com/PetteriM1/NukkitPetteriM1Edition/releases/download/4299/Nukkit-PM1E.jar
 
     - name: Compile Plugin
       run: |
         mkdir -p out
-        # Buscamos todos los archivos .java y los compilamos usando el jar de Nukkit como classpath
         find src/main/java -name "*.java" > sources.txt
         javac -cp "libs/nukkit.jar" -d out @sources.txt
 
     - name: Package JAR
       run: |
-        # --- CORRECCION CRITICA ---
-        # Usamos cp -r (recursivo) con asterisco (*) para copiar TODO lo que hay en resources.
-        # Esto incluye plugin.yml, pero tambien las carpetas structures, fossils y archivos .nbt
+        # Copia recursiva para incluir plugin.yml y la carpeta structures con los .nbt
         cp -r src/main/resources/* out/
         
         cd out
-        # Creamos el archivo JAR final
         jar cvf ../WorldGeneratorExtension.jar .
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: WorldGeneratorExtension-Binary
-        path: WorldGeneratorExtension.jar
         path: WorldGeneratorExtension.jar
