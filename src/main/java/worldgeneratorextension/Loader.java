@@ -40,6 +40,7 @@ import worldgeneratorextension.vipop.structure.VillagePieces;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.util.*;
 
 public class Loader extends PluginBase implements Listener {
@@ -127,14 +128,14 @@ public class Loader extends PluginBase implements Listener {
         }
 
         try (InputStream inputStream = Loader.class.getClassLoader().getResourceAsStream(path)) {
-            // CORRECCIÓN 1: Verificar si el archivo existe (no es null)
+            // VERIFICACIÓN: Evita NullPointerException si la ruta está mal
             if (inputStream == null) {
                 if (INSTANCE != null) {
                     INSTANCE.getLogger().error("No se pudo encontrar el archivo de estructura: " + path + ". Verifica que el archivo exista en src/main/resources/");
                 } else {
                     System.err.println("WorldGeneratorExtension: No se pudo encontrar el archivo: " + path);
                 }
-                return new CompoundTag(); // Retorna vacío para evitar NullPointerException
+                return new CompoundTag(); 
             }
             return NBTIO.readCompressed(inputStream);
         } catch (IOException e) {
@@ -177,21 +178,29 @@ public class Loader extends PluginBase implements Listener {
     }
 
     public static RuntimeItemMapping getRuntimeItemMapptings() {
-        // CORRECCIÓN 2: Eliminado el argumento 419 que causaba error de compilación
-        if ("Nukkit PetteriM1 Edition".equals(Server.getInstance().getName())) {
-            return RuntimeItems.getMapping(); 
-        }
-
+        // SOLUCIÓN DEFINITIVA: Usamos reflexión para invocar getMapping()
+        // Esto evita errores de compilación ya sea que pida (int) o ()
         try {
-            // Intento genérico usando reflexión por si acaso
-            return (RuntimeItemMapping) Class.forName("cn.nukkit.item.RuntimeItems").getMethod("getMapping").invoke(null);
-        } catch (Exception e) {
-            // Si todo falla, intentamos la llamada directa estándar actualizada
+            Class<?> clazz = Class.forName("cn.nukkit.item.RuntimeItems");
+            
+            // 1. Intentamos buscar el método que pide un INT (Versiones nuevas/específicas)
             try {
-                return RuntimeItems.getMapping();
-            } catch (Exception ex) {
-                throw new RuntimeException("Failed to get RuntimeItemMapping", ex);
+                Method method = clazz.getMethod("getMapping", int.class);
+                // Obtenemos el protocolo actual dinámicamente
+                int protocol = 419; // Valor por defecto seguro
+                try {
+                    protocol = cn.nukkit.network.protocol.ProtocolInfo.CURRENT_PROTOCOL;
+                } catch (Throwable t) {
+                    // Si falla ProtocolInfo, mantenemos 419
+                }
+                return (RuntimeItemMapping) method.invoke(null, protocol);
+            } catch (NoSuchMethodException e) {
+                // 2. Si no existe, buscamos el método SIN argumentos (Versiones antiguas/PetteriM1)
+                Method method = clazz.getMethod("getMapping");
+                return (RuntimeItemMapping) method.invoke(null);
             }
+        } catch (Exception e) {
+            throw new RuntimeException("Fallo crítico al obtener RuntimeItemMapping por reflexión", e);
         }
     }
 
