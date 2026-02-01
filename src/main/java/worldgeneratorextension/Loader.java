@@ -75,7 +75,8 @@ public class Loader extends PluginBase implements Listener {
             Generator.addGenerator(NormalGenerator.class, "normal", NormalGenerator.TYPE_INFINITE);
         }
 
-        // Inicializadores
+        // Inicialización de estructuras
+        // Si falta algún archivo, el servidor se detendrá aquí mostrando qué archivo falta.
         PopulatorFossil.init();
         PopulatorShipwreck.init();
         PopulatorIgloo.init();
@@ -118,24 +119,22 @@ public class Loader extends PluginBase implements Listener {
     }
 
     /**
-     * Carga un archivo NBT de los recursos de forma segura.
-     * Si no existe, retorna un tag vacío en lugar de crashear el servidor.
+     * Carga un archivo NBT de los recursos.
+     * Lanza una excepción clara si el archivo no existe para evitar errores confusos después.
      */
     public static CompoundTag loadNBT(String path) {
-        // Asegura compatibilidad con getResourceAsStream
         if (path.startsWith("/")) {
              path = path.substring(1);
         }
 
         try (InputStream inputStream = Loader.class.getClassLoader().getResourceAsStream(path)) {
-            // VERIFICACIÓN: Evita NullPointerException si la ruta está mal
+            // CAMBIO IMPORTANTE: Si es null, lanzamos error INMEDIATO.
             if (inputStream == null) {
-                if (INSTANCE != null) {
-                    INSTANCE.getLogger().error("No se pudo encontrar el archivo de estructura: " + path + ". Verifica que el archivo exista en src/main/resources/");
-                } else {
-                    System.err.println("WorldGeneratorExtension: No se pudo encontrar el archivo: " + path);
-                }
-                return new CompoundTag(); 
+                String errorMsg = "ERROR CRITICO WGE: No se encuentra el archivo '" + path + 
+                                  "'. Asegurate de que el archivo este en 'src/main/resources/" + path + "'";
+                if (INSTANCE != null) INSTANCE.getLogger().error(errorMsg);
+                // Lanzamos RuntimeException para que veas el mensaje en la consola claramente
+                throw new RuntimeException(errorMsg);
             }
             return NBTIO.readCompressed(inputStream);
         } catch (IOException e) {
@@ -178,29 +177,25 @@ public class Loader extends PluginBase implements Listener {
     }
 
     public static RuntimeItemMapping getRuntimeItemMapptings() {
-        // SOLUCIÓN DEFINITIVA: Usamos reflexión para invocar getMapping()
-        // Esto evita errores de compilación ya sea que pida (int) o ()
+        // Usa reflexión para ser compatible con cualquier versión de Nukkit
         try {
             Class<?> clazz = Class.forName("cn.nukkit.item.RuntimeItems");
             
-            // 1. Intentamos buscar el método que pide un INT (Versiones nuevas/específicas)
+            // Intento 1: Versión con int (Protocolo)
             try {
                 Method method = clazz.getMethod("getMapping", int.class);
-                // Obtenemos el protocolo actual dinámicamente
-                int protocol = 419; // Valor por defecto seguro
+                int protocol = 419; 
                 try {
                     protocol = cn.nukkit.network.protocol.ProtocolInfo.CURRENT_PROTOCOL;
-                } catch (Throwable t) {
-                    // Si falla ProtocolInfo, mantenemos 419
-                }
+                } catch (Throwable t) {}
                 return (RuntimeItemMapping) method.invoke(null, protocol);
             } catch (NoSuchMethodException e) {
-                // 2. Si no existe, buscamos el método SIN argumentos (Versiones antiguas/PetteriM1)
+                // Intento 2: Versión sin argumentos
                 Method method = clazz.getMethod("getMapping");
                 return (RuntimeItemMapping) method.invoke(null);
             }
         } catch (Exception e) {
-            throw new RuntimeException("Fallo crítico al obtener RuntimeItemMapping por reflexión", e);
+            throw new RuntimeException("Fallo al obtener RuntimeItemMapping (Reflexión fallida)", e);
         }
     }
 
