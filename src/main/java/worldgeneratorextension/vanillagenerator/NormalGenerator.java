@@ -40,14 +40,11 @@ public class NormalGenerator extends Generator {
 
     public static int SEA_LEVEL = 64;
 
-    // --- CAMBIO AQUÍ: ID 49 (Obsidiana) para pruebas ---
-    private static final int DEEPSLATE_ID = 49;
+    // Usamos ID 49 (Obsidiana) para que sea obvio si funciona
+    private static final int DEEPSLATE_ID = 49; 
+    private static final int BEDROCK_ID = BlockID.BEDROCK;
 
-    /**
-     * The biome maps used to fill chunks biome grid and terrain generation.
-     */
     private MapLayer[] biomeGrid;
-
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
     private static final Int2ObjectMap<GroundGenerator> GROUND_MAP = new Int2ObjectOpenHashMap<>();
     private static final Int2ObjectMap<BiomeHeight> HEIGHT_MAP = new Int2ObjectOpenHashMap<>();
@@ -175,7 +172,6 @@ public class NormalGenerator extends Generator {
         this.nukkitRandom.setSeed(this.level.getSeed());
 
         this.generationPopulators = ImmutableList.of(new PopulatorCaves());
-
         this.populators = ImmutableList.of(
                 new PopulatorOre(STONE, new OreType[]{
                         new OreType(Block.get(BlockID.COAL_ORE), 20, 17, 0, 131),
@@ -202,12 +198,10 @@ public class NormalGenerator extends Generator {
     @Override
     public void generateChunk(int chunkX, int chunkZ) {
         this.nukkitRandom.setSeed(chunkX * localSeed1 ^ chunkZ * localSeed2 ^ this.level.getSeed());
-
         BaseFullChunk chunkData = level.getChunk(chunkX, chunkZ);
 
         int x = chunkX << 2;
         int z = chunkZ << 2;
-
         int[] biomeGrid = this.biomeGrid[1].generateValues(x - 2, z - 2, 10, 10);
 
         Map<String, OctaveGenerator> octaves = getWorldOctaves();
@@ -290,6 +284,7 @@ public class NormalGenerator extends Generator {
         int seaFill = 0;
         double densityOffset = 0.0;
 
+        // Bucle de llenado de bloques
         for (int i = 0; i < 5 - 1; i++) {
             for (int j = 0; j < 5 - 1; j++) {
                 for (int k = 0; k < 49 - 1; k++) {
@@ -309,19 +304,35 @@ public class NormalGenerator extends Generator {
                             double dens = d9;
                             for (int n = 0; n < 4; n++) {
                                 
-                                // --- CAMBIO IMPORTANTE: CALCULO DE COORDENADA Y ID ---
                                 int realY = l + (k << 3) - 64;
-                                
-                                // Usamos Obsidiana (ID 49) si estamos en capa 0 o inferior.
-                                // Si realY > 0, usamos piedra normal.
-                                int stoneId = (realY <= 0) ? DEEPSLATE_ID : STONE;
+                                int stoneId = STONE;
+                                boolean isDeep = false;
 
+                                // --- DIAGNOSTICO ---
+                                // Esto imprimirá en la consola si el generador intenta pasar por coordenadas negativas
+                                if (realY == -60 && m == 0 && n == 0 && i == 0 && j == 0) {
+                                    System.out.println("DEBUG: Generador operando en Y=-60 para chunk " + chunkX + "," + chunkZ);
+                                }
+                                
+                                // --- LÓGICA DE FUERZA BRUTA PARA DEEPSLATE ---
+                                if (realY <= 0) {
+                                    stoneId = DEEPSLATE_ID; // Obsidiana para prueba
+                                    isDeep = true;          // Marcamos que estamos en zona profunda
+                                }
+
+                                // Si estamos en zona profunda (isDeep), IGNORAMOS la densidad y forzamos el bloque
+                                boolean forcePlace = isDeep; 
+
+                                // Lógica normal (agua vs piedra)
                                 if (afill == 1 || afill == 10 || afill == 13 || afill == 16) {
                                     chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STILL_WATER);
                                 } else if (afill == 2 || afill == 9 || afill == 12 || afill == 15) {
                                     chunkData.setBlock(m + (i << 2), realY, n + (j << 2), stoneId);
                                 }
-                                if (dens > densityOffset && fill > -1 || dens <= densityOffset && fill < 0) {
+
+                                // Aquí está el cambio clave: '|| forcePlace'
+                                // Si es zona profunda, colocamos el bloque SI o SI, sin importar lo que diga el ruido 'dens'
+                                if (forcePlace || (dens > densityOffset && fill > -1 || dens <= densityOffset && fill < 0)) {
                                     if (afill == 0 || afill == 3 || afill == 6 || afill == 9 || afill == 12) {
                                         chunkData.setBlock(m + (i << 2), realY, n + (j << 2), stoneId);
                                     } else if (afill == 2 || afill == 7 || afill == 10 || afill == 16) {
@@ -345,6 +356,15 @@ public class NormalGenerator extends Generator {
                         d4 += d8;
                     }
                 }
+            }
+        }
+
+        // --- GENERACIÓN MANUAL DE BEDROCK EN EL FONDO ---
+        // Esto es independiente de todo cálculo de ruido. Debe funcionar si el chunk lo permite.
+        for (int bx = 0; bx < 16; bx++) {
+            for (int bz = 0; bz < 16; bz++) {
+                chunkData.setBlock(bx, -64, bz, BEDROCK_ID);
+                chunkData.setBlock(bx, -63, bz, BEDROCK_ID); // Doble capa por seguridad
             }
         }
 
@@ -372,11 +392,11 @@ public class NormalGenerator extends Generator {
         this.generationPopulators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, chunkData));
     }
 
+    // El resto de la clase permanece igual...
     @Override
     public void populateChunk(int chunkX, int chunkZ) {
         BaseFullChunk chunk = this.level.getChunk(chunkX, chunkZ);
         this.nukkitRandom.setSeed(0xdeadbeef ^ (chunkX << 8) ^ chunkZ ^ this.level.getSeed());
-
         Biome.getBiome(chunk.getBiomeId(7, 7)).populateChunk(this.level, chunkX, chunkZ, this.nukkitRandom);
         this.populators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, chunk));
     }
@@ -391,34 +411,28 @@ public class NormalGenerator extends Generator {
         if (octaves == null) {
             octaves = Maps.newHashMap();
             NukkitRandom seed = new NukkitRandom(this.level.getSeed());
-
             OctaveGenerator gen = new PerlinOctaveGenerator(seed, 16, 5, 5);
             gen.setXScale(heightNoiseScaleX);
             gen.setZScale(heightNoiseScaleZ);
             octaves.put("height", gen);
-
             gen = new PerlinOctaveGenerator(seed, 16, 5, 49, 5);
             gen.setXScale(coordinateScale);
             gen.setYScale(heightScale);
             gen.setZScale(coordinateScale);
             octaves.put("roughness", gen);
-
             gen = new PerlinOctaveGenerator(seed, 16, 5, 49, 5);
             gen.setXScale(coordinateScale);
             gen.setYScale(heightScale);
             gen.setZScale(coordinateScale);
             octaves.put("roughness2", gen);
-
             gen = new PerlinOctaveGenerator(seed, 8, 5, 49, 5);
             gen.setXScale(coordinateScale / detailNoiseScaleX);
             gen.setYScale(heightScale / detailNoiseScaleY);
             gen.setZScale(coordinateScale / detailNoiseScaleZ);
             octaves.put("detail", gen);
-
             gen = new SimplexOctaveGenerator(seed, 4, 16, 16);
             gen.setScale(surfaceScale);
             octaves.put("surface", gen);
-
             this.octaveCache.put(this.getName(), octaves);
         }
         return octaves;
@@ -457,21 +471,13 @@ public class NormalGenerator extends Generator {
         public static final BiomeHeight RIVER = new BiomeHeight(-0.5d,0d);
         public static final BiomeHeight OCEAN = new BiomeHeight(-1d,0.1d);
         public static final BiomeHeight DEEP_OCEAN = new BiomeHeight(-1.8d,0.1d);
-
         private final double height;
         private final double scale;
-
         BiomeHeight(double height, double scale){
             this.height = height;
             this.scale = scale;
         }
-
-        public double getHeight(){
-            return this.height;
-        }
-
-        public double getScale(){
-            return this.scale;
-        }
+        public double getHeight(){ return this.height; }
+        public double getScale(){ return this.scale; }
     }
 }
