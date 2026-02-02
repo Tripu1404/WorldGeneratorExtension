@@ -40,17 +40,14 @@ public class NormalGenerator extends Generator {
 
     public static int SEA_LEVEL = 64;
 
-    // --- CORRECCIÓN CRÍTICA AQUÍ ---
-    // En lugar de usar -378 fijo, obtenemos el ID real del servidor.
-    // Usamos 'lazy initialization' (se llenará en el init) para evitar errores si Block no cargó aún.
-    private int deepslateId = -1; 
+    // --- CORRECCIÓN: Usamos el ID numérico directamente para evitar error de compilación ---
+    private static final int DEEPSLATE_ID = -378;
 
     private MapLayer[] biomeGrid;
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
     private static final Int2ObjectMap<GroundGenerator> GROUND_MAP = new Int2ObjectOpenHashMap<>();
     private static final Int2ObjectMap<BiomeHeight> HEIGHT_MAP = new Int2ObjectOpenHashMap<>();
 
-    // Variables de configuración de ruido (Noise settings)
     private static final double coordinateScale = 684.412d;
     private static final double heightScale = 684.412d;
     private static final double heightNoiseScaleX = 200d;
@@ -173,22 +170,7 @@ public class NormalGenerator extends Generator {
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
         this.nukkitRandom.setSeed(this.level.getSeed());
         
-        // --- BUSQUEDA DEL ID ---
-        // Intentamos encontrar el bloque "minecraft:deepslate"
-        try {
-            // Primero intentamos buscarlo por nombre string (seguro en PowerNukkit)
-            Block deepslate = Block.get("minecraft:deepslate");
-            if (deepslate != null && deepslate.getId() != 0) {
-                this.deepslateId = deepslate.getId();
-            } else {
-                // Fallback: intentamos el ID negativo si el server lo soporta, o 1 (Piedra) si falla
-                this.deepslateId = -378; 
-                System.out.println("ADVERTENCIA: No se pudo encontrar 'minecraft:deepslate' por nombre. Usando ID -378.");
-            }
-        } catch (Exception e) {
-            this.deepslateId = 1; // Fallback a piedra normal para que no genere aire
-            System.out.println("ERROR CRITICO: Fallo al buscar bloque deepslate. Se usará piedra.");
-        }
+        // No init logic needed for Deepslate ID since we use the constant -378
 
         this.generationPopulators = ImmutableList.of(new PopulatorCaves());
 
@@ -324,19 +306,19 @@ public class NormalGenerator extends Generator {
                             for (int n = 0; n < 4; n++) {
                                 
                                 int realY = l + (k << 3) - 64;
-                                int stoneId = STONE; // Por defecto piedra (ID 1)
+                                int stoneId = STONE; // Default stone (ID 1)
 
-                                // --- LOGICA DE DEEPSLATE MEJORADA ---
+                                // --- LOGICA DE DEEPSLATE MEJORADA (COMPATIBLE) ---
                                 // Si realY <= 20, consideramos Deepslate
                                 if (realY <= 20) {
                                     // 100% probabilidad si es <= 15
                                     if (realY <= 15) {
-                                        stoneId = this.deepslateId;
+                                        stoneId = DEEPSLATE_ID;
                                     } else {
                                         // 16 a 20: Transición gradual
                                         // Genera un número aleatorio entre 15 y 20
                                         if (this.nukkitRandom.nextRange(15, 20) >= realY) {
-                                            stoneId = this.deepslateId;
+                                            stoneId = DEEPSLATE_ID;
                                         }
                                     }
                                 }
