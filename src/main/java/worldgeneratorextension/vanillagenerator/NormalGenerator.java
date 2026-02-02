@@ -40,14 +40,17 @@ public class NormalGenerator extends Generator {
 
     public static int SEA_LEVEL = 64;
 
-    // ID de Deepslate
-    private static final int DEEPSLATE_ID = -378;
+    // --- CORRECCIÓN CRÍTICA AQUÍ ---
+    // En lugar de usar -378 fijo, obtenemos el ID real del servidor.
+    // Usamos 'lazy initialization' (se llenará en el init) para evitar errores si Block no cargó aún.
+    private int deepslateId = -1; 
 
     private MapLayer[] biomeGrid;
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
     private static final Int2ObjectMap<GroundGenerator> GROUND_MAP = new Int2ObjectOpenHashMap<>();
     private static final Int2ObjectMap<BiomeHeight> HEIGHT_MAP = new Int2ObjectOpenHashMap<>();
 
+    // Variables de configuración de ruido (Noise settings)
     private static final double coordinateScale = 684.412d;
     private static final double heightScale = 684.412d;
     private static final double heightNoiseScaleX = 200d;
@@ -169,6 +172,23 @@ public class NormalGenerator extends Generator {
         this.localSeed1 = ThreadLocalRandom.current().nextLong();
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
         this.nukkitRandom.setSeed(this.level.getSeed());
+        
+        // --- BUSQUEDA DEL ID ---
+        // Intentamos encontrar el bloque "minecraft:deepslate"
+        try {
+            // Primero intentamos buscarlo por nombre string (seguro en PowerNukkit)
+            Block deepslate = Block.get("minecraft:deepslate");
+            if (deepslate != null && deepslate.getId() != 0) {
+                this.deepslateId = deepslate.getId();
+            } else {
+                // Fallback: intentamos el ID negativo si el server lo soporta, o 1 (Piedra) si falla
+                this.deepslateId = -378; 
+                System.out.println("ADVERTENCIA: No se pudo encontrar 'minecraft:deepslate' por nombre. Usando ID -378.");
+            }
+        } catch (Exception e) {
+            this.deepslateId = 1; // Fallback a piedra normal para que no genere aire
+            System.out.println("ERROR CRITICO: Fallo al buscar bloque deepslate. Se usará piedra.");
+        }
 
         this.generationPopulators = ImmutableList.of(new PopulatorCaves());
 
@@ -198,12 +218,10 @@ public class NormalGenerator extends Generator {
     @Override
     public void generateChunk(int chunkX, int chunkZ) {
         this.nukkitRandom.setSeed(chunkX * localSeed1 ^ chunkZ * localSeed2 ^ this.level.getSeed());
-
         BaseFullChunk chunkData = level.getChunk(chunkX, chunkZ);
 
         int x = chunkX << 2;
         int z = chunkZ << 2;
-
         int[] biomeGrid = this.biomeGrid[1].generateValues(x - 2, z - 2, 10, 10);
 
         Map<String, OctaveGenerator> octaves = getWorldOctaves();
@@ -306,26 +324,22 @@ public class NormalGenerator extends Generator {
                             for (int n = 0; n < 4; n++) {
                                 
                                 int realY = l + (k << 3) - 64;
-                                int stoneId = STONE;
+                                int stoneId = STONE; // Por defecto piedra (ID 1)
 
-                                // --- LOGICA DE DEEPSLATE ACTUALIZADA ---
-                                // Si estamos en capa 20 o inferior, evaluamos deepslate
+                                // --- LOGICA DE DEEPSLATE MEJORADA ---
+                                // Si realY <= 20, consideramos Deepslate
                                 if (realY <= 20) {
-                                    // Si es capa 15 o inferior (15, 14, 0, -1, etc), 100% Deepslate
+                                    // 100% probabilidad si es <= 15
                                     if (realY <= 15) {
-                                        stoneId = DEEPSLATE_ID;
+                                        stoneId = this.deepslateId;
                                     } else {
-                                        // Entre capa 16 y 20: Mezcla para transición
-                                        // Rango aleatorio entre 15 y 20.
-                                        // Si sale >= realY, pone Deepslate.
-                                        // Ej: en Y=16, es muy probable (16,17,18,19,20 ganan).
-                                        // Ej: en Y=20, es poco probable (solo 20 gana).
+                                        // 16 a 20: Transición gradual
+                                        // Genera un número aleatorio entre 15 y 20
                                         if (this.nukkitRandom.nextRange(15, 20) >= realY) {
-                                            stoneId = DEEPSLATE_ID;
+                                            stoneId = this.deepslateId;
                                         }
                                     }
                                 }
-                                // ---------------------------------------
 
                                 if (afill == 1 || afill == 10 || afill == 13 || afill == 16) {
                                     chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STILL_WATER);
@@ -387,7 +401,6 @@ public class NormalGenerator extends Generator {
     public void populateChunk(int chunkX, int chunkZ) {
         BaseFullChunk chunk = this.level.getChunk(chunkX, chunkZ);
         this.nukkitRandom.setSeed(0xdeadbeef ^ (chunkX << 8) ^ chunkZ ^ this.level.getSeed());
-
         Biome.getBiome(chunk.getBiomeId(7, 7)).populateChunk(this.level, chunkX, chunkZ, this.nukkitRandom);
         this.populators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, chunk));
     }
@@ -468,21 +481,13 @@ public class NormalGenerator extends Generator {
         public static final BiomeHeight RIVER = new BiomeHeight(-0.5d,0d);
         public static final BiomeHeight OCEAN = new BiomeHeight(-1d,0.1d);
         public static final BiomeHeight DEEP_OCEAN = new BiomeHeight(-1.8d,0.1d);
-
         private final double height;
         private final double scale;
-
         BiomeHeight(double height, double scale){
             this.height = height;
             this.scale = scale;
         }
-
-        public double getHeight(){
-            return this.height;
-        }
-
-        public double getScale(){
-            return this.scale;
-        }
+        public double getHeight(){ return this.height; }
+        public double getScale(){ return this.scale; }
     }
 }
