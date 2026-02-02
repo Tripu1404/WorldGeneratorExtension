@@ -40,7 +40,9 @@ public class NormalGenerator extends Generator {
 
     public static int SEA_LEVEL = 64;
 
-    // --- CORRECCIÓN: Usamos el ID numérico directamente para evitar error de compilación ---
+    // ID de Deepslate solicitado.
+    // NOTA: Si sigues viendo piedra normal, cambia esto por 49 (Obsidiana) para probar.
+    // Si la Obsidiana sale, tu servidor no soporta el ID -378.
     private static final int DEEPSLATE_ID = -378;
 
     private MapLayer[] biomeGrid;
@@ -169,8 +171,6 @@ public class NormalGenerator extends Generator {
         this.localSeed1 = ThreadLocalRandom.current().nextLong();
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
         this.nukkitRandom.setSeed(this.level.getSeed());
-        
-        // No init logic needed for Deepslate ID since we use the constant -378
 
         this.generationPopulators = ImmutableList.of(new PopulatorCaves());
 
@@ -306,22 +306,21 @@ public class NormalGenerator extends Generator {
                             for (int n = 0; n < 4; n++) {
                                 
                                 int realY = l + (k << 3) - 64;
-                                int stoneId = STONE; // Default stone (ID 1)
+                                int stoneId = BlockID.STONE; // Default ID 1
 
-                                // --- LOGICA DE DEEPSLATE MEJORADA (COMPATIBLE) ---
-                                // Si realY <= 20, consideramos Deepslate
+                                // --- LOGICA DE REEMPLAZO DEFINITIVA ---
                                 if (realY <= 20) {
-                                    // 100% probabilidad si es <= 15
+                                    // Zona segura: Capa 15 para abajo (incluyendo negativos) -> SIEMPRE Deepslate
                                     if (realY <= 15) {
                                         stoneId = DEEPSLATE_ID;
                                     } else {
-                                        // 16 a 20: Transición gradual
-                                        // Genera un número aleatorio entre 15 y 20
+                                        // Zona de transición: Capa 16 a 20 -> Mezcla aleatoria
                                         if (this.nukkitRandom.nextRange(15, 20) >= realY) {
                                             stoneId = DEEPSLATE_ID;
                                         }
                                     }
                                 }
+                                // --------------------------------------
 
                                 if (afill == 1 || afill == 10 || afill == 13 || afill == 16) {
                                     chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STILL_WATER);
