@@ -31,26 +31,18 @@ public class MapLayerBiomeVariation extends MapLayer {
         VARIATIONS.put(EnumBiome.MESA_PLATEAU_F.id, new int[]{EnumBiome.MESA.id});
         VARIATIONS.put(EnumBiome.MESA_PLATEAU.id, new int[]{EnumBiome.MESA.id});
         VARIATIONS.put(EnumBiome.MESA.id, new int[]{EnumBiome.MESA.id});
+        
+        // MODIFICADO: Registramos el Manglar para que no tenga variaciones erróneas
+        VARIATIONS.put(150, new int[]{150});
     }
 
     private final MapLayer belowLayer;
     private final MapLayer variationLayer;
 
-    /**
-     * Creates an instance with no variation layer.
-     * @param seed the PRNG seed
-     * @param belowLayer the layer below this one
-     */
     public MapLayerBiomeVariation(long seed, MapLayer belowLayer) {
         this(seed, belowLayer, null);
     }
 
-    /**
-     * Creates an instance with the given variation layer.
-     * @param seed the PRNG seed
-     * @param belowLayer the layer below this one
-     * @param variationLayer the variation layer, or null to use no variation layer
-     */
     public MapLayerBiomeVariation(long seed, MapLayer belowLayer, MapLayer variationLayer) {
         super(seed);
         this.belowLayer = belowLayer;
@@ -65,16 +57,6 @@ public class MapLayerBiomeVariation extends MapLayer {
         return mergeValues(x, z, sizeX, sizeZ);
     }
 
-    /**
-     * Generates a rectangle, replacing all the positive values in the previous layer with random
-     * values from 2 to 31 while leaving zero and negative values unchanged.
-     *
-     * @param x the lowest x coordinate
-     * @param z the lowest z coordinate
-     * @param sizeX the x coordinate range
-     * @param sizeZ the z coordinate range
-     * @return a flattened array of generated values
-     */
     public int[] generateRandomValues(int x, int z, int sizeX, int sizeZ) {
         int[] values = this.belowLayer.generateValues(x, z, sizeX, sizeZ);
 
@@ -92,15 +74,6 @@ public class MapLayerBiomeVariation extends MapLayer {
         return finalValues;
     }
 
-    /**
-     * Generates a rectangle using the previous layer and the variation layer.
-     *
-     * @param x the lowest x coordinate
-     * @param z the lowest z coordinate
-     * @param sizeX the x coordinate range
-     * @param sizeZ the z coordinate range
-     * @return a flattened array of generated values
-     */
     public int[] mergeValues(int x, int z, int sizeX, int sizeZ) {
         int gridX = x - 1;
         int gridZ = z - 1;
@@ -131,19 +104,18 @@ public class MapLayerBiomeVariation extends MapLayer {
                     }
                     if (val != centerValue) {
                         int count = 0;
-                        if (values[j + 1 + i * gridSizeX] == centerValue) { // upper value
+                        if (values[j + 1 + i * gridSizeX] == centerValue) { 
                             count++;
                         }
-                        if (values[j + 1 + (i + 2) * gridSizeX] == centerValue) { // lower value
+                        if (values[j + 1 + (i + 2) * gridSizeX] == centerValue) { 
                             count++;
                         }
-                        if (values[j + (i + 1) * gridSizeX] == centerValue) { // left value
+                        if (values[j + (i + 1) * gridSizeX] == centerValue) { 
                             count++;
                         }
-                        if (values[j + 2 + (i + 1) * gridSizeX] == centerValue) { // right value
+                        if (values[j + 2 + (i + 1) * gridSizeX] == centerValue) { 
                             count++;
                         }
-                        // spread mountains if not too close from an edge
                         finalValues[j + i * sizeX] = count < 3 ? centerValue : val;
                     } else {
                         finalValues[j + i * sizeX] = val;
