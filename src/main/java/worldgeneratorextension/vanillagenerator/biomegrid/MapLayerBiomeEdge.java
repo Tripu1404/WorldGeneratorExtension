@@ -28,7 +28,12 @@ public class MapLayerBiomeEdge extends MapLayer {
         DESERT_EDGES.put(EnumBiome.DESERT.id, EnumBiome.EXTREME_HILLS_PLUS.id);
 
         SWAMP1_EDGES.put(EnumBiome.SWAMP.id, EnumBiome.PLAINS.id);
+        // MODIFICADO: El Manglar se convierte en Llanura si está cerca de zonas muy incompatibles (hielo/desierto)
+        SWAMP1_EDGES.put(150, EnumBiome.PLAINS.id);
+
         SWAMP2_EDGES.put(EnumBiome.SWAMP.id, EnumBiome.JUNGLE_EDGE.id);
+        // MODIFICADO: El Manglar se convierte en Borde de Jungla si está cerca de Jungla
+        SWAMP2_EDGES.put(150, EnumBiome.JUNGLE_EDGE.id);
 
         EDGES.put(MESA_EDGES, null);
         EDGES.put(MEGA_TAIGA_EDGES, null);
