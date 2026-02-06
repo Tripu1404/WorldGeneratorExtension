@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import java.lang.reflect.Field; // Necesario para la corrección
 
 public class NormalGenerator extends Generator {
 
@@ -48,43 +49,37 @@ public class NormalGenerator extends Generator {
     private static final int DIRT = BlockID.DIRT;
     private static final int GRAVEL = BlockID.GRAVEL;
 
-    // --- FIX: DETECCIÓN SEGURA DE DEEPSLATE ---
-    // Esto evita que se genere AIRE si la ID no existe
+    // --- CORRECCIÓN DE COMPILACIÓN: ID DEEPSLATE ---
     private static int DEEPSLATE_ID;
 
     static {
         int foundId = 0;
+        
+        // Intento 1: Usar Reflection para buscar "BlockID.DEEPSLATE" sin romper la compilación
+        // Esto funciona si la variable existe en el server pero no en tu entorno de compilación
         try {
-            // Intento 1: Buscar por nombre interno (Más seguro en forks modernos)
-            foundId = Block.get("deepslate").getId();
+            Field field = BlockID.class.getField("DEEPSLATE");
+            foundId = field.getInt(null);
         } catch (Exception e) {
-            // Ignorar fallo
+            // La constante no existe en esta versión de BlockID
         }
 
+        // Intento 2: Usar ID numérica directa (653 es Deepslate en Bedrock moderno)
         if (foundId == 0) {
             try {
-                // Intento 2: Usar ID numérica común de Bedrock 1.18+
-                foundId = 653; 
-                // Verificación rápida de que 653 no sea aire en tu server específico
-                if (Block.get(653).getId() == 0) foundId = 0;
+                // Verificamos si el server reconoce la ID 653 (que no devuelva aire/0)
+                // Usamos get(int) que SÍ existe en tu API
+                if (Block.get(653).getId() != 0) {
+                    foundId = 653;
+                }
             } catch (Exception e) {
-                foundId = 0;
+                // Falló la obtención, ignoramos
             }
         }
 
+        // FALLBACK: Si todo falla, usa STONE para evitar errores graves
         if (foundId == 0) {
-            try {
-                // Intento 3: Constante de la API (Si existe)
-                foundId = BlockID.DEEPSLATE;
-            } catch (NoSuchFieldError e) {
-                // La versión de Nukkit es vieja
-            }
-        }
-
-        // FALLBACK FINAL: Si todo falla, usa STONE. 
-        // Es mejor tener piedra normal abajo que tener vacío.
-        if (foundId == 0) {
-            System.out.println("Warning: Deepslate ID not found using fallback STONE.");
+            System.out.println("[NormalGenerator] ADVERTENCIA: Deepslate ID no encontrada. Usando PIEDRA.");
             foundId = BlockID.STONE;
         }
         
@@ -239,7 +234,7 @@ public class NormalGenerator extends Generator {
                         new OreType(Block.get(STONE, BlockStone.ANDESITE), 10, 33, 0, 80)
                 }),
                 
-                // Usamos DEEPSLATE_ID aquí también para la seguridad
+                // Usamos DEEPSLATE_ID (variable segura)
                 new cn.nukkit.level.generator.populator.impl.PopulatorOre(DEEPSLATE_ID, new cn.nukkit.level.generator.object.ore.OreType[]{
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COAL_ORE), 1, 13, -4, 8, DEEPSLATE_ID),
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COPPER_ORE), 5, 9, -64, 8, DEEPSLATE_ID),
@@ -323,8 +318,7 @@ public class NormalGenerator extends Generator {
 
                 noiseH = (noiseH * 0.2d + avgHeightBase) * baseSize / 8d * 4d + baseSize;
                 
-                // Mantenemos el ajuste para dar espacio a la profundidad (-64)
-                noiseH += 8.0d; 
+                noiseH += 8.0d; // Ajuste para profundidad
 
                 for (int k = 0; k < 41; k++) {
                     double nh = (k - noiseH) * stretchY * 128d / 256d / avgHeightScale;
@@ -374,13 +368,11 @@ public class NormalGenerator extends Generator {
                                 // Cálculo de altura real ajustado a -64
                                 int realY = l + (k << 3) - 64;
                                 
-                                // Lógica de Deepslate corregida con transición suave y ID SEGURA
+                                // Lógica Deepslate usando la ID segura
                                 int solidBlock = STONE;
                                 if (realY <= 0) {
-                                    // Todo por debajo de Y=0 es Deepslate sólido
                                     solidBlock = DEEPSLATE_ID;
                                 } else if (realY <= 8) {
-                                    // Zona de transición (0 a 8)
                                     int noiseMix = (m + (i << 2) * 3121 + n + (j << 2) * 4523 + realY * 6781) & 15;
                                     if (noiseMix < (8 - realY) * 2) { 
                                         solidBlock = DEEPSLATE_ID;
@@ -435,7 +427,6 @@ public class NormalGenerator extends Generator {
         double[] surfaceNoise = octaveGenerator.getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
         for (int sx = 0; sx < sizeX; sx++) {
             for (int sz = 0; sz < sizeZ; sz++) {
-                // GroundGen suele trabajar sobre BaseFullChunk, debería estar bien.
                 GROUND_MAP.getOrDefault(biomes.getBiome(sx, sz), groundGen).generateTerrainColumn(level, chunkData, this.nukkitRandom, cx + sx, cz + sz, biomes.getBiome(sx, sz), surfaceNoise[sx | sz << 4]);
                 chunkData.setBiomeId(sx, sz, biomes.getBiome(sx, sz));
             }
@@ -498,20 +489,16 @@ public class NormalGenerator extends Generator {
     }
 
     private static class BiomeGrid {
-
         public final byte[] biomes = new byte[256];
-
         public int getBiome(int x, int z) {
             return Biome.biomes[biomes[x | z << 4] & 0xff].getId();
         }
-
         public void setBiome(int x, int z, int bio) {
             biomes[x | z << 4] = (byte) Biome.biomes[bio].getId();
         }
     }
 
     private static class BiomeHeight {
-
         public static final BiomeHeight DEFAULT = new BiomeHeight(0.1d,0.2d);
         public static final BiomeHeight FLAT_SHORE = new BiomeHeight(0d,0.025d);
         public static final BiomeHeight HIGH_PLATEAU = new BiomeHeight(1.5d,0.025d);
@@ -542,13 +529,7 @@ public class NormalGenerator extends Generator {
             this.height = height;
             this.scale = scale;
         }
-
-        public double getHeight(){
-            return this.height;
-        }
-
-        public double getScale(){
-            return this.scale;
-        }
+        public double getHeight(){ return this.height; }
+        public double getScale(){ return this.scale; }
     }
 }
