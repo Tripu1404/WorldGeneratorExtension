@@ -2,6 +2,7 @@ package worldgeneratorextension.vanillagenerator.populator;
 
 import cn.nukkit.block.Block;
 import cn.nukkit.level.ChunkManager;
+import cn.nukkit.level.format.FullChunk; // Importante
 import cn.nukkit.level.generator.populator.type.Populator;
 import cn.nukkit.math.NukkitRandom;
 import cn.nukkit.math.Vector3;
@@ -12,23 +13,43 @@ public class MangroveTreePopulator extends Populator {
 
     public void setBaseAmount(int amount) { this.baseAmount = amount; }
 
+    // CORRECCIÓN 1: La firma debe incluir FullChunk
     @Override
-    public void populate(ChunkManager level, int chunkX, int chunkZ, NukkitRandom random) {
-        int x = (chunkX << 4) + random.nextRange(0, 15);
-        int z = (chunkZ << 4) + random.nextRange(0, 15);
-        int y = level.getHighestBlockAt(x, z);
+    public void populate(ChunkManager level, int chunkX, int chunkZ, NukkitRandom random, FullChunk chunk) {
+        int amount = random.nextRange(0, 1) + baseAmount;
+        
+        for (int i = 0; i < amount; ++i) {
+            int x = random.nextRange(0, 15);
+            int z = random.nextRange(0, 15);
+            
+            // CORRECCIÓN 2: Usamos el chunk para obtener la altura, no el level
+            // Y usamos coordenadas locales (0-15)
+            int y = chunk.getHighestBlockAt(x, z);
 
-        if (level.getBlockIdAt(x, y - 1, z) == Block.MUD) {
-            // Genera el árbol de tu archivo ObjectMangroveTree.java
-            new ObjectMangroveTree().generate(level, random, new Vector3(x, y, z));
+            // Obtenemos coordenadas globales para la generación
+            int globalX = (chunkX << 4) + x;
+            int globalZ = (chunkZ << 4) + z;
 
-            // Genera Moss Carpet (Musgo) en lugar de flores/pasto
-            for (int i = 0; i < 5; i++) {
-                int mx = x + random.nextRange(-2, 2);
-                int mz = z + random.nextRange(-2, 2);
-                int my = level.getHighestBlockAt(mx, mz);
-                if (level.getBlockIdAt(mx, my, mz) == Block.AIR) {
-                    level.setBlockAt(mx, my, mz, Block.MOSS_CARPET);
+            // Verificamos el bloque de suelo usando el ID 1610 (Mud)
+            int floorId = chunk.getBlockId(x, y - 1, z);
+            
+            if (floorId == 1610 || floorId == Block.DIRT || floorId == Block.GRASS) {
+                // CORRECCIÓN 3: Nos aseguramos de pasar los tipos correctos
+                ObjectMangroveTree tree = new ObjectMangroveTree();
+                tree.generate(level, random, new Vector3(globalX, y, globalZ));
+
+                // Generar musgo (Moss Carpet = 1615)
+                for (int j = 0; j < 6; j++) {
+                    int randX = random.nextRange(-3, 3);
+                    int randZ = random.nextRange(-3, 3);
+                    
+                    // Verificamos límites del chunk para evitar errores
+                    if (x + randX >= 0 && x + randX < 16 && z + randZ >= 0 && z + randZ < 16) {
+                         int currentY = chunk.getHighestBlockAt(x + randX, z + randZ);
+                         if (chunk.getBlockId(x + randX, currentY, z + randZ) == 0) { // 0 es AIR
+                             chunk.setBlock(x + randX, currentY, z + randZ, 1615); // 1615 es Moss Carpet
+                         }
+                    }
                 }
             }
         }
