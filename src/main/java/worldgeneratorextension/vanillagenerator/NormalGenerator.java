@@ -6,7 +6,7 @@ import cn.nukkit.block.BlockStone;
 import cn.nukkit.level.ChunkManager;
 import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.biome.EnumBiome;
-import cn.nukkit.level.format.generic.BaseFullChunk;
+import cn.nukkit.level.format.FullChunk; // CAMBIO: Usamos FullChunk
 import cn.nukkit.level.generator.Generator;
 import cn.nukkit.level.generator.populator.impl.PopulatorSpring;
 import cn.nukkit.level.generator.populator.impl.WaterIcePopulator;
@@ -28,7 +28,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import worldgeneratorextension.vanillagenerator.populator.overworld.PopulatorSnowLayers;
 
-// IMPORTS NUEVOS: Usamos nuestras clases personalizadas
+// Imports de nuestras clases corregidas
 import worldgeneratorextension.vanillagenerator.populator.PopulatorDeepslate;
 import worldgeneratorextension.vanillagenerator.populator.PopulatorBedrockExtended;
 
@@ -49,7 +49,6 @@ public class NormalGenerator extends Generator {
     private static final Int2ObjectMap<GroundGenerator> GROUND_MAP = new Int2ObjectOpenHashMap<>();
     private static final Int2ObjectMap<BiomeHeight> HEIGHT_MAP = new Int2ObjectOpenHashMap<>();
 
-    // Variables de ruido
     private static final double coordinateScale = 684.412d;
     private static final double heightScale = 684.412d;
     private static final double heightNoiseScaleX = 200d; 
@@ -172,16 +171,14 @@ public class NormalGenerator extends Generator {
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
         this.nukkitRandom.setSeed(this.level.getSeed());
 
-        // 1. GENERATION POPULATORS
-        // Aquí añadimos nuestro PopulatorDeepslate personalizado
+        // Generation Populators
         this.generationPopulators = ImmutableList.of(
                 new PopulatorDeepslate(-64),
                 new PopulatorCaves()
         );
 
-        // 2. ORE & DECORATION POPULATORS
+        // Ore & Decoration Populators
         this.populators = ImmutableList.of(
-                // Ores Originales
                 new PopulatorOre(STONE, new OreType[]{
                         new OreType(Block.get(BlockID.COAL_ORE), 20, 17, 0, 131),
                         new OreType(Block.get(BlockID.COPPER_ORE), 20, 9, 0, 192),
@@ -197,10 +194,6 @@ public class NormalGenerator extends Generator {
                         new OreType(Block.get(STONE, BlockStone.ANDESITE), 10, 33, 0, 80)
                 }),
                 
-                // Ores de Deepslate
-                // NOTA: Usamos cn.nukkit.level.generator.object.ore.OreType explícitamente porque es probable
-                // que tu OreType local no soporte el parámetro de 'replacedBlockId' (el 6to parámetro).
-                // Si esto da error, habría que actualizar tu clase OreType local.
                 new cn.nukkit.level.generator.populator.impl.PopulatorOre(BlockID.DEEPSLATE, new cn.nukkit.level.generator.object.ore.OreType[]{
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COAL_ORE), 1, 13, -4, 8, BlockID.DEEPSLATE),
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COPPER_ORE), 5, 9, -64, 8, BlockID.DEEPSLATE),
@@ -216,7 +209,7 @@ public class NormalGenerator extends Generator {
                 new PopulatorSpring(BlockID.WATER, BlockID.STONE, 15, 8, 255),
                 new PopulatorSpring(BlockID.LAVA, BlockID.STONE, 10, 16, 255),
                 
-                // Bedrock personalizada en -64
+                // Bedrock
                 new PopulatorBedrockExtended(-64)
         );
         this.biomeGrid = MapLayer.initialize(level.getSeed(), this.getDimension(), this.getId());
@@ -226,7 +219,8 @@ public class NormalGenerator extends Generator {
     public void generateChunk(int chunkX, int chunkZ) {
         this.nukkitRandom.setSeed(chunkX * localSeed1 ^ chunkZ * localSeed2 ^ this.level.getSeed());
 
-        BaseFullChunk chunkData = level.getChunk(chunkX, chunkZ);
+        // CAMBIO: Especificamos FullChunk aquí para evitar problemas con los populadores
+        FullChunk chunkData = level.getChunk(chunkX, chunkZ);
 
         int x = chunkX << 2;
         int z = chunkZ << 2;
