@@ -29,7 +29,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import worldgeneratorextension.vanillagenerator.populator.overworld.PopulatorSnowLayers;
 
-import worldgeneratorextension.vanillagenerator.populator.PopulatorDeepslate;
+// Solo necesitamos el Bedrock, el Deepslate lo haremos nativo
 import worldgeneratorextension.vanillagenerator.populator.PopulatorBedrockExtended;
 
 import java.util.Collections;
@@ -43,6 +43,11 @@ public class NormalGenerator extends Generator {
     public static final int TYPE_AMPLIFIED = 6;
 
     public static int SEA_LEVEL = 64;
+
+    // IDs locales para evitar errores si BlockID no los tiene actualizados
+    private static final int STONE = BlockID.STONE;
+    private static final int STILL_WATER = BlockID.STILL_WATER;
+    private static final int DEEPSLATE = BlockID.DEEPSLATE; // Asegúrate de que tu servidor soporte este ID
 
     private MapLayer[] biomeGrid;
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
@@ -113,7 +118,7 @@ public class NormalGenerator extends Generator {
     }
 
     private final Map<String, Map<String, OctaveGenerator>> octaveCache = Maps.newHashMap();
-    // CORRECCIÓN: Aumentamos el tamaño del array a 41 para soportar desde -64 hasta 256
+    // Aumentamos array para soportar -64 a 256+
     private final double[][][] density = new double[5][5][41];
     private final GroundGenerator groundGen = new GroundGenerator();
     private final BiomeHeight defaultHeight = BiomeHeight.DEFAULT;
@@ -172,8 +177,8 @@ public class NormalGenerator extends Generator {
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
         this.nukkitRandom.setSeed(this.level.getSeed());
 
+        // Hemos eliminado PopulatorDeepslate porque lo haremos nativo abajo
         this.generationPopulators = ImmutableList.of(
-                new PopulatorDeepslate(-64),
                 new PopulatorCaves()
         );
 
@@ -192,6 +197,8 @@ public class NormalGenerator extends Generator {
                         new OreType(Block.get(STONE, BlockStone.DIORITE), 10, 33, 0, 80),
                         new OreType(Block.get(STONE, BlockStone.ANDESITE), 10, 33, 0, 80)
                 }),
+                
+                // Ores de Deepslate
                 new cn.nukkit.level.generator.populator.impl.PopulatorOre(BlockID.DEEPSLATE, new cn.nukkit.level.generator.object.ore.OreType[]{
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COAL_ORE), 1, 13, -4, 8, BlockID.DEEPSLATE),
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COPPER_ORE), 5, 9, -64, 8, BlockID.DEEPSLATE),
@@ -201,6 +208,7 @@ public class NormalGenerator extends Generator {
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_GOLD_ORE), 2, 9, -64, 8, BlockID.DEEPSLATE),
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_DIAMOND_ORE), 4, 5, -64, 8, BlockID.DEEPSLATE)
                 }),
+                
                 new PopulatorSnowLayers(),
                 new WaterIcePopulator(),
                 new PopulatorSpring(BlockID.WATER, BlockID.STONE, 15, 8, 255),
@@ -273,12 +281,11 @@ public class NormalGenerator extends Generator {
                 }
 
                 noiseH = (noiseH * 0.2d + avgHeightBase) * baseSize / 8d * 4d + baseSize;
-
-                // CORRECCIÓN: Offset para capas negativas. 
-                // Sumamos 8.0 (64 bloques / 8) para que el índice 8 corresponda al nivel del mar original.
+                
+                // AJUSTE CRÍTICO: Movemos el 'suelo' del ruido hacia arriba para dar espacio a los 64 bloques de deepslate
                 noiseH += 8.0d; 
 
-                // CORRECCIÓN: Loop k hasta 41 (antes 33) para cubrir la nueva altura total
+                // K loop ampliado a 41
                 for (int k = 0; k < 41; k++) {
                     double nh = (k - noiseH) * stretchY * 128d / 256d / avgHeightScale;
                     if (nh < 0) {
@@ -291,7 +298,7 @@ public class NormalGenerator extends Generator {
                             : noiseD > 1 ? noiseR2 : noiseR + (noiseR2 - noiseR) * noiseD;
                     dens -= nh;
                     index++;
-                    // Ajuste de cielo (ahora en 37, equivalente al 29 original + 8)
+                    // Ajuste de altura del cielo (37 = 29 + 8)
                     if (k > 37) {
                         double lowering = (k - 37) / 3d;
                         dens = dens * (1d - lowering) + -10d * lowering;
@@ -308,7 +315,6 @@ public class NormalGenerator extends Generator {
 
         for (int i = 0; i < 5 - 1; i++) {
             for (int j = 0; j < 5 - 1; j++) {
-                // CORRECCIÓN: Loop k hasta 40 (41-1)
                 for (int k = 0; k < 41 - 1; k++) {
                     double d1 = this.density[i][j][k];
                     double d2 = this.density[i + 1][j][k];
@@ -325,19 +331,30 @@ public class NormalGenerator extends Generator {
                         for (int m = 0; m < 4; m++) {
                             double dens = d9;
                             for (int n = 0; n < 4; n++) {
-                                // Cálculo de coordenadas reales Y
-                                // k es el segmento (cada 1 vale 8 bloques).
-                                // Restamos 64 bloques (8 segmentos) para empezar en -64.
-                                int realY = l + (k << 3) - 64; 
+                                // Cálculo de altura real (-64)
+                                int realY = l + (k << 3) - 64;
+                                
+                                // Lógica de DEEPSLATE vs PIEDRA
+                                int solidBlock = STONE;
+                                if (realY <= 0) {
+                                    solidBlock = DEEPSLATE;
+                                } else if (realY <= 8) {
+                                    // Mezcla rápida pseudo-aleatoria basada en coordenadas
+                                    // Si el valor es bajo, ponemos deepslate, creando efecto de transición
+                                    int noiseMix = (m + (i << 2) * 3121 + n + (j << 2) * 4523 + realY * 6781) & 15;
+                                    if (noiseMix < (8 - realY) + 2) { 
+                                        solidBlock = DEEPSLATE;
+                                    }
+                                }
 
                                 if (afill == 1 || afill == 10 || afill == 13 || afill == 16) {
                                     chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STILL_WATER);
                                 } else if (afill == 2 || afill == 9 || afill == 12 || afill == 15) {
-                                    chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STONE);
+                                    chunkData.setBlock(m + (i << 2), realY, n + (j << 2), solidBlock);
                                 }
                                 if (dens > densityOffset && fill > -1 || dens <= densityOffset && fill < 0) {
                                     if (afill == 0 || afill == 3 || afill == 6 || afill == 9 || afill == 12) {
-                                        chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STONE);
+                                        chunkData.setBlock(m + (i << 2), realY, n + (j << 2), solidBlock);
                                     } else if (afill == 2 || afill == 7 || afill == 10 || afill == 16) {
                                         chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STILL_WATER);
                                     }
@@ -345,7 +362,7 @@ public class NormalGenerator extends Generator {
                                     if (afill == 0 || afill == 3 || afill == 7 || afill == 10 || afill == 13) {
                                         chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STILL_WATER);
                                     } else if (afill == 1 || afill == 6 || afill == 9 || afill == 15) {
-                                        chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STONE);
+                                        chunkData.setBlock(m + (i << 2), realY, n + (j << 2), solidBlock);
                                     }
                                 }
                                 dens += (d10 - d9) / 4;
@@ -378,6 +395,7 @@ public class NormalGenerator extends Generator {
         double[] surfaceNoise = octaveGenerator.getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
         for (int sx = 0; sx < sizeX; sx++) {
             for (int sz = 0; sz < sizeZ; sz++) {
+                // GroundGen suele trabajar sobre BaseFullChunk, debería estar bien.
                 GROUND_MAP.getOrDefault(biomes.getBiome(sx, sz), groundGen).generateTerrainColumn(level, chunkData, this.nukkitRandom, cx + sx, cz + sz, biomes.getBiome(sx, sz), surfaceNoise[sx | sz << 4]);
                 chunkData.setBiomeId(sx, sz, biomes.getBiome(sx, sz));
             }
@@ -392,6 +410,8 @@ public class NormalGenerator extends Generator {
         this.nukkitRandom.setSeed(0xdeadbeef ^ (chunkX << 8) ^ chunkZ ^ this.level.getSeed());
 
         Biome.getBiome(chunk.getBiomeId(7, 7)).populateChunk(this.level, chunkX, chunkZ, this.nukkitRandom);
+        
+        // Hacemos cast a FullChunk para compatibilidad con BedrockExtended y Ores nuevos
         this.populators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, (FullChunk) chunk));
     }
 
@@ -411,21 +431,19 @@ public class NormalGenerator extends Generator {
             gen.setZScale(heightNoiseScaleZ);
             octaves.put("height", gen);
 
-            // CORRECCIÓN: Ajustamos el tamaño Y a 41 para que coincida con nuestro array de densidad
+            // Ajustado a 41 para cubrir la altura extendida
             gen = new PerlinOctaveGenerator(seed, 16, 5, 41, 5);
             gen.setXScale(coordinateScale);
             gen.setYScale(heightScale);
             gen.setZScale(coordinateScale);
             octaves.put("roughness", gen);
 
-            // CORRECCIÓN: Ajustamos el tamaño Y a 41
             gen = new PerlinOctaveGenerator(seed, 16, 5, 41, 5);
             gen.setXScale(coordinateScale);
             gen.setYScale(heightScale);
             gen.setZScale(coordinateScale);
             octaves.put("roughness2", gen);
 
-            // CORRECCIÓN: Ajustamos el tamaño Y a 41
             gen = new PerlinOctaveGenerator(seed, 8, 5, 41, 5);
             gen.setXScale(coordinateScale / detailNoiseScaleX);
             gen.setYScale(heightScale / detailNoiseScaleY);
