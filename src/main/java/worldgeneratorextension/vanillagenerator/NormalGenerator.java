@@ -8,8 +8,6 @@ import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.biome.EnumBiome;
 import cn.nukkit.level.format.generic.BaseFullChunk;
 import cn.nukkit.level.generator.Generator;
-import cn.nukkit.level.generator.populator.impl.PopulatorBedrock; // Import añadido
-import cn.nukkit.level.generator.populator.impl.PopulatorDeepslate; // Import añadido
 import cn.nukkit.level.generator.populator.impl.PopulatorSpring;
 import cn.nukkit.level.generator.populator.impl.WaterIcePopulator;
 import cn.nukkit.level.generator.populator.type.Populator;
@@ -30,6 +28,10 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import worldgeneratorextension.vanillagenerator.populator.overworld.PopulatorSnowLayers;
 
+// IMPORTS NUEVOS: Usamos nuestras clases personalizadas
+import worldgeneratorextension.vanillagenerator.populator.PopulatorDeepslate;
+import worldgeneratorextension.vanillagenerator.populator.PopulatorBedrockExtended;
+
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -40,29 +42,26 @@ public class NormalGenerator extends Generator {
     public static final int TYPE_LARGE_BIOMES = 5;
     public static final int TYPE_AMPLIFIED = 6;
 
-    public static int SEA_LEVEL = 64; // 64 generates water normally at y 62
+    public static int SEA_LEVEL = 64; 
 
-    /**
-     * The biome maps used to fill chunks biome grid and terrain generation.
-     */
     private MapLayer[] biomeGrid;
-
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
     private static final Int2ObjectMap<GroundGenerator> GROUND_MAP = new Int2ObjectOpenHashMap<>();
     private static final Int2ObjectMap<BiomeHeight> HEIGHT_MAP = new Int2ObjectOpenHashMap<>();
 
+    // Variables de ruido
     private static final double coordinateScale = 684.412d;
     private static final double heightScale = 684.412d;
-    private static final double heightNoiseScaleX = 200d; // depthNoiseScaleX
-    private static final double heightNoiseScaleZ = 200d; // depthNoiseScaleZ
-    private static final double detailNoiseScaleX = 80d;  // mainNoiseScaleX
-    private static final double detailNoiseScaleY = 160d; // mainNoiseScaleY
-    private static final double detailNoiseScaleZ = 80d;  // mainNoiseScaleZ
+    private static final double heightNoiseScaleX = 200d; 
+    private static final double heightNoiseScaleZ = 200d; 
+    private static final double detailNoiseScaleX = 80d;  
+    private static final double detailNoiseScaleY = 160d; 
+    private static final double detailNoiseScaleZ = 80d;  
     private static final double surfaceScale = 0.0625d;
     private static final double baseSize = 8.5d;
     private static final double stretchY = 12d;
-    private static final double biomeHeightOffset = 0d;    // biomeDepthOffset
-    private static final double biomeHeightWeight = 1d;    // biomeDepthWeight
+    private static final double biomeHeightOffset = 0d;    
+    private static final double biomeHeightWeight = 1d;    
     private static final double biomeScaleOffset = 0d;
     private static final double biomeScaleWeight = 1d;
 
@@ -103,7 +102,6 @@ public class NormalGenerator extends Generator {
         setBiomeHeight(BiomeHeight.LOW_SPIKES, EnumBiome.SAVANNA_M.id);
         setBiomeHeight(BiomeHeight.HIGH_SPIKES, EnumBiome.SAVANNA_PLATEAU_M.id);
 
-        // fill a 5x5 array with values that acts as elevation weight on chunk neighboring
         for (int x = 0; x < 5; x++) {
             for (int z = 0; z < 5; z++) {
                 int sqX = x - 2;
@@ -140,11 +138,9 @@ public class NormalGenerator extends Generator {
     private long localSeed2;
 
     public NormalGenerator() {
-        // reflect
     }
 
     public NormalGenerator(Map<String, Object> options) {
-        // reflect
     }
 
     @Override
@@ -176,14 +172,16 @@ public class NormalGenerator extends Generator {
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
         this.nukkitRandom.setSeed(this.level.getSeed());
 
-        // AÑADIDO: PopulatorDeepslate para convertir piedra profunda a partir de Y=0 hacia abajo hasta -64
+        // 1. GENERATION POPULATORS
+        // Aquí añadimos nuestro PopulatorDeepslate personalizado
         this.generationPopulators = ImmutableList.of(
                 new PopulatorDeepslate(-64),
                 new PopulatorCaves()
         );
 
+        // 2. ORE & DECORATION POPULATORS
         this.populators = ImmutableList.of(
-                // Minerales Originales (Standard Stone Ores)
+                // Ores Originales
                 new PopulatorOre(STONE, new OreType[]{
                         new OreType(Block.get(BlockID.COAL_ORE), 20, 17, 0, 131),
                         new OreType(Block.get(BlockID.COPPER_ORE), 20, 9, 0, 192),
@@ -198,7 +196,11 @@ public class NormalGenerator extends Generator {
                         new OreType(Block.get(STONE, BlockStone.DIORITE), 10, 33, 0, 80),
                         new OreType(Block.get(STONE, BlockStone.ANDESITE), 10, 33, 0, 80)
                 }),
-                // AÑADIDO: Minerales de Deepslate (Usando OreType nativo de Nukkit)
+                
+                // Ores de Deepslate
+                // NOTA: Usamos cn.nukkit.level.generator.object.ore.OreType explícitamente porque es probable
+                // que tu OreType local no soporte el parámetro de 'replacedBlockId' (el 6to parámetro).
+                // Si esto da error, habría que actualizar tu clase OreType local.
                 new cn.nukkit.level.generator.populator.impl.PopulatorOre(BlockID.DEEPSLATE, new cn.nukkit.level.generator.object.ore.OreType[]{
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COAL_ORE), 1, 13, -4, 8, BlockID.DEEPSLATE),
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COPPER_ORE), 5, 9, -64, 8, BlockID.DEEPSLATE),
@@ -208,12 +210,14 @@ public class NormalGenerator extends Generator {
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_GOLD_ORE), 2, 9, -64, 8, BlockID.DEEPSLATE),
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_DIAMOND_ORE), 4, 5, -64, 8, BlockID.DEEPSLATE)
                 }),
+                
                 new PopulatorSnowLayers(),
                 new WaterIcePopulator(),
                 new PopulatorSpring(BlockID.WATER, BlockID.STONE, 15, 8, 255),
                 new PopulatorSpring(BlockID.LAVA, BlockID.STONE, 10, 16, 255),
-                // AÑADIDO: Bedrock en -64
-                new PopulatorBedrock(-64)
+                
+                // Bedrock personalizada en -64
+                new PopulatorBedrockExtended(-64)
         );
         this.biomeGrid = MapLayer.initialize(level.getSeed(), this.getDimension(), this.getId());
     }
