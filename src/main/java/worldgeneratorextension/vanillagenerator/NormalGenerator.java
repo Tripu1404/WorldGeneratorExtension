@@ -8,6 +8,8 @@ import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.biome.EnumBiome;
 import cn.nukkit.level.format.generic.BaseFullChunk;
 import cn.nukkit.level.generator.Generator;
+import cn.nukkit.level.generator.populator.impl.PopulatorBedrock; // Import añadido
+import cn.nukkit.level.generator.populator.impl.PopulatorDeepslate; // Import añadido
 import cn.nukkit.level.generator.populator.impl.PopulatorSpring;
 import cn.nukkit.level.generator.populator.impl.WaterIcePopulator;
 import cn.nukkit.level.generator.populator.type.Populator;
@@ -38,30 +40,29 @@ public class NormalGenerator extends Generator {
     public static final int TYPE_LARGE_BIOMES = 5;
     public static final int TYPE_AMPLIFIED = 6;
 
-    public static int SEA_LEVEL = 64;
+    public static int SEA_LEVEL = 64; // 64 generates water normally at y 62
 
-    // ID de Deepslate solicitado.
-    // NOTA: Si sigues viendo piedra normal, cambia esto por 49 (Obsidiana) para probar.
-    // Si la Obsidiana sale, tu servidor no soporta el ID -378.
-    private static final int DEEPSLATE_ID = -378;
-
+    /**
+     * The biome maps used to fill chunks biome grid and terrain generation.
+     */
     private MapLayer[] biomeGrid;
+
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
     private static final Int2ObjectMap<GroundGenerator> GROUND_MAP = new Int2ObjectOpenHashMap<>();
     private static final Int2ObjectMap<BiomeHeight> HEIGHT_MAP = new Int2ObjectOpenHashMap<>();
 
     private static final double coordinateScale = 684.412d;
     private static final double heightScale = 684.412d;
-    private static final double heightNoiseScaleX = 200d;
-    private static final double heightNoiseScaleZ = 200d;
-    private static final double detailNoiseScaleX = 80d;
-    private static final double detailNoiseScaleY = 160d;
-    private static final double detailNoiseScaleZ = 80d;
+    private static final double heightNoiseScaleX = 200d; // depthNoiseScaleX
+    private static final double heightNoiseScaleZ = 200d; // depthNoiseScaleZ
+    private static final double detailNoiseScaleX = 80d;  // mainNoiseScaleX
+    private static final double detailNoiseScaleY = 160d; // mainNoiseScaleY
+    private static final double detailNoiseScaleZ = 80d;  // mainNoiseScaleZ
     private static final double surfaceScale = 0.0625d;
     private static final double baseSize = 8.5d;
     private static final double stretchY = 12d;
-    private static final double biomeHeightOffset = 0d;
-    private static final double biomeHeightWeight = 1d;
+    private static final double biomeHeightOffset = 0d;    // biomeDepthOffset
+    private static final double biomeHeightWeight = 1d;    // biomeDepthWeight
     private static final double biomeScaleOffset = 0d;
     private static final double biomeScaleWeight = 1d;
 
@@ -102,6 +103,7 @@ public class NormalGenerator extends Generator {
         setBiomeHeight(BiomeHeight.LOW_SPIKES, EnumBiome.SAVANNA_M.id);
         setBiomeHeight(BiomeHeight.HIGH_SPIKES, EnumBiome.SAVANNA_PLATEAU_M.id);
 
+        // fill a 5x5 array with values that acts as elevation weight on chunk neighboring
         for (int x = 0; x < 5; x++) {
             for (int z = 0; z < 5; z++) {
                 int sqX = x - 2;
@@ -114,7 +116,7 @@ public class NormalGenerator extends Generator {
     }
 
     private final Map<String, Map<String, OctaveGenerator>> octaveCache = Maps.newHashMap();
-    private final double[][][] density = new double[5][5][49];
+    private final double[][][] density = new double[5][5][33];
     private final GroundGenerator groundGen = new GroundGenerator();
     private final BiomeHeight defaultHeight = BiomeHeight.DEFAULT;
 
@@ -138,9 +140,11 @@ public class NormalGenerator extends Generator {
     private long localSeed2;
 
     public NormalGenerator() {
+        // reflect
     }
 
     public NormalGenerator(Map<String, Object> options) {
+        // reflect
     }
 
     @Override
@@ -172,9 +176,14 @@ public class NormalGenerator extends Generator {
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
         this.nukkitRandom.setSeed(this.level.getSeed());
 
-        this.generationPopulators = ImmutableList.of(new PopulatorCaves());
+        // AÑADIDO: PopulatorDeepslate para convertir piedra profunda a partir de Y=0 hacia abajo hasta -64
+        this.generationPopulators = ImmutableList.of(
+                new PopulatorDeepslate(-64),
+                new PopulatorCaves()
+        );
 
         this.populators = ImmutableList.of(
+                // Minerales Originales (Standard Stone Ores)
                 new PopulatorOre(STONE, new OreType[]{
                         new OreType(Block.get(BlockID.COAL_ORE), 20, 17, 0, 131),
                         new OreType(Block.get(BlockID.COPPER_ORE), 20, 9, 0, 192),
@@ -189,10 +198,22 @@ public class NormalGenerator extends Generator {
                         new OreType(Block.get(STONE, BlockStone.DIORITE), 10, 33, 0, 80),
                         new OreType(Block.get(STONE, BlockStone.ANDESITE), 10, 33, 0, 80)
                 }),
+                // AÑADIDO: Minerales de Deepslate (Usando OreType nativo de Nukkit)
+                new cn.nukkit.level.generator.populator.impl.PopulatorOre(BlockID.DEEPSLATE, new cn.nukkit.level.generator.object.ore.OreType[]{
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COAL_ORE), 1, 13, -4, 8, BlockID.DEEPSLATE),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COPPER_ORE), 5, 9, -64, 8, BlockID.DEEPSLATE),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_IRON_ORE), 5, 9, -64, 8, BlockID.DEEPSLATE),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_REDSTONE_ORE), 8, 8, -64, 8, BlockID.DEEPSLATE),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_LAPIS_ORE), 6, 6, -64, 8, BlockID.DEEPSLATE),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_GOLD_ORE), 2, 9, -64, 8, BlockID.DEEPSLATE),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_DIAMOND_ORE), 4, 5, -64, 8, BlockID.DEEPSLATE)
+                }),
                 new PopulatorSnowLayers(),
                 new WaterIcePopulator(),
                 new PopulatorSpring(BlockID.WATER, BlockID.STONE, 15, 8, 255),
-                new PopulatorSpring(BlockID.LAVA, BlockID.STONE, 10, 16, 255)
+                new PopulatorSpring(BlockID.LAVA, BlockID.STONE, 10, 16, 255),
+                // AÑADIDO: Bedrock en -64
+                new PopulatorBedrock(-64)
         );
         this.biomeGrid = MapLayer.initialize(level.getSeed(), this.getDimension(), this.getId());
     }
@@ -200,10 +221,12 @@ public class NormalGenerator extends Generator {
     @Override
     public void generateChunk(int chunkX, int chunkZ) {
         this.nukkitRandom.setSeed(chunkX * localSeed1 ^ chunkZ * localSeed2 ^ this.level.getSeed());
+
         BaseFullChunk chunkData = level.getChunk(chunkX, chunkZ);
 
         int x = chunkX << 2;
         int z = chunkZ << 2;
+
         int[] biomeGrid = this.biomeGrid[1].generateValues(x - 2, z - 2, 10, 10);
 
         Map<String, OctaveGenerator> octaves = getWorldOctaves();
@@ -222,7 +245,6 @@ public class NormalGenerator extends Generator {
                 double totalWeight = 0;
                 int biome = Biome.getBiome(biomeGrid[i + 2 + (j + 2) * 10]).getId();
                 BiomeHeight biomeHeight = HEIGHT_MAP.getOrDefault(biome, defaultHeight);
-
                 for (int m = 0; m < 5; m++) {
                     for (int n = 0; n < 5; n++) {
                         int nearBiome = Biome.getBiome(biomeGrid[i + m + (j + n) * 10]).getId();
@@ -259,8 +281,7 @@ public class NormalGenerator extends Generator {
                 }
 
                 noiseH = (noiseH * 0.2d + avgHeightBase) * baseSize / 8d * 4d + baseSize;
-                
-                for (int k = 0; k < 49; k++) {
+                for (int k = 0; k < 33; k++) {
                     double nh = (k - noiseH) * stretchY * 128d / 256d / avgHeightScale;
                     if (nh < 0) {
                         nh *= 4d;
@@ -272,8 +293,8 @@ public class NormalGenerator extends Generator {
                             : noiseD > 1 ? noiseR2 : noiseR + (noiseR2 - noiseR) * noiseD;
                     dens -= nh;
                     index++;
-                    if (k > 45) {
-                        double lowering = (k - 45) / 3d;
+                    if (k > 29) {
+                        double lowering = (k - 29) / 3d;
                         dens = dens * (1d - lowering) + -10d * lowering;
                     }
                     this.density[i][j][k] = dens;
@@ -282,13 +303,13 @@ public class NormalGenerator extends Generator {
         }
 
         int fill = 0;
-        int afill = 0; 
+        int afill = 0;
         int seaFill = 0;
         double densityOffset = 0.0;
 
         for (int i = 0; i < 5 - 1; i++) {
             for (int j = 0; j < 5 - 1; j++) {
-                for (int k = 0; k < 49 - 1; k++) {
+                for (int k = 0; k < 33 - 1; k++) {
                     double d1 = this.density[i][j][k];
                     double d2 = this.density[i + 1][j][k];
                     double d3 = this.density[i][j + 1][k];
@@ -304,40 +325,22 @@ public class NormalGenerator extends Generator {
                         for (int m = 0; m < 4; m++) {
                             double dens = d9;
                             for (int n = 0; n < 4; n++) {
-                                
-                                int realY = l + (k << 3) - 64;
-                                int stoneId = BlockID.STONE; // Default ID 1
-
-                                // --- LOGICA DE REEMPLAZO DEFINITIVA ---
-                                if (realY <= 20) {
-                                    // Zona segura: Capa 15 para abajo (incluyendo negativos) -> SIEMPRE Deepslate
-                                    if (realY <= 15) {
-                                        stoneId = DEEPSLATE_ID;
-                                    } else {
-                                        // Zona de transición: Capa 16 a 20 -> Mezcla aleatoria
-                                        if (this.nukkitRandom.nextRange(15, 20) >= realY) {
-                                            stoneId = DEEPSLATE_ID;
-                                        }
-                                    }
-                                }
-                                // --------------------------------------
-
                                 if (afill == 1 || afill == 10 || afill == 13 || afill == 16) {
-                                    chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STILL_WATER);
+                                    chunkData.setBlock(m + (i << 2), l + (k << 3), n + (j << 2), STILL_WATER);
                                 } else if (afill == 2 || afill == 9 || afill == 12 || afill == 15) {
-                                    chunkData.setBlock(m + (i << 2), realY, n + (j << 2), stoneId);
+                                    chunkData.setBlock(m + (i << 2), l + (k << 3), n + (j << 2), STONE);
                                 }
                                 if (dens > densityOffset && fill > -1 || dens <= densityOffset && fill < 0) {
                                     if (afill == 0 || afill == 3 || afill == 6 || afill == 9 || afill == 12) {
-                                        chunkData.setBlock(m + (i << 2), realY, n + (j << 2), stoneId);
+                                        chunkData.setBlock(m + (i << 2), l + (k << 3), n + (j << 2), STONE);
                                     } else if (afill == 2 || afill == 7 || afill == 10 || afill == 16) {
-                                        chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STILL_WATER);
+                                        chunkData.setBlock(m + (i << 2), l + (k << 3), n + (j << 2), STILL_WATER);
                                     }
-                                } else if (realY < SEA_LEVEL - 1 && seaFill == 0 || realY >= SEA_LEVEL - 1 && seaFill == 1) {
+                                } else if (l + (k << 3) < SEA_LEVEL - 1 && seaFill == 0 || l + (k << 3) >= SEA_LEVEL - 1 && seaFill == 1) {
                                     if (afill == 0 || afill == 3 || afill == 7 || afill == 10 || afill == 13) {
-                                        chunkData.setBlock(m + (i << 2), realY, n + (j << 2), STILL_WATER);
+                                        chunkData.setBlock(m + (i << 2), l + (k << 3), n + (j << 2), STILL_WATER);
                                     } else if (afill == 1 || afill == 6 || afill == 9 || afill == 15) {
-                                        chunkData.setBlock(m + (i << 2), realY, n + (j << 2), stoneId);
+                                        chunkData.setBlock(m + (i << 2), l + (k << 3), n + (j << 2), STONE);
                                     }
                                 }
                                 dens += (d10 - d9) / 4;
@@ -382,6 +385,7 @@ public class NormalGenerator extends Generator {
     public void populateChunk(int chunkX, int chunkZ) {
         BaseFullChunk chunk = this.level.getChunk(chunkX, chunkZ);
         this.nukkitRandom.setSeed(0xdeadbeef ^ (chunkX << 8) ^ chunkZ ^ this.level.getSeed());
+
         Biome.getBiome(chunk.getBiomeId(7, 7)).populateChunk(this.level, chunkX, chunkZ, this.nukkitRandom);
         this.populators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, chunk));
     }
@@ -402,19 +406,19 @@ public class NormalGenerator extends Generator {
             gen.setZScale(heightNoiseScaleZ);
             octaves.put("height", gen);
 
-            gen = new PerlinOctaveGenerator(seed, 16, 5, 49, 5);
+            gen = new PerlinOctaveGenerator(seed, 16, 5, 33, 5);
             gen.setXScale(coordinateScale);
             gen.setYScale(heightScale);
             gen.setZScale(coordinateScale);
             octaves.put("roughness", gen);
 
-            gen = new PerlinOctaveGenerator(seed, 16, 5, 49, 5);
+            gen = new PerlinOctaveGenerator(seed, 16, 5, 33, 5);
             gen.setXScale(coordinateScale);
             gen.setYScale(heightScale);
             gen.setZScale(coordinateScale);
             octaves.put("roughness2", gen);
 
-            gen = new PerlinOctaveGenerator(seed, 8, 5, 49, 5);
+            gen = new PerlinOctaveGenerator(seed, 8, 5, 33, 5);
             gen.setXScale(coordinateScale / detailNoiseScaleX);
             gen.setYScale(heightScale / detailNoiseScaleY);
             gen.setZScale(coordinateScale / detailNoiseScaleZ);
@@ -430,16 +434,20 @@ public class NormalGenerator extends Generator {
     }
 
     private static class BiomeGrid {
+
         public final byte[] biomes = new byte[256];
+
         public int getBiome(int x, int z) {
             return Biome.biomes[biomes[x | z << 4] & 0xff].getId();
         }
+
         public void setBiome(int x, int z, int bio) {
             biomes[x | z << 4] = (byte) Biome.biomes[bio].getId();
         }
     }
 
     private static class BiomeHeight {
+
         public static final BiomeHeight DEFAULT = new BiomeHeight(0.1d,0.2d);
         public static final BiomeHeight FLAT_SHORE = new BiomeHeight(0d,0.025d);
         public static final BiomeHeight HIGH_PLATEAU = new BiomeHeight(1.5d,0.025d);
@@ -462,13 +470,21 @@ public class NormalGenerator extends Generator {
         public static final BiomeHeight RIVER = new BiomeHeight(-0.5d,0d);
         public static final BiomeHeight OCEAN = new BiomeHeight(-1d,0.1d);
         public static final BiomeHeight DEEP_OCEAN = new BiomeHeight(-1.8d,0.1d);
+
         private final double height;
         private final double scale;
+
         BiomeHeight(double height, double scale){
             this.height = height;
             this.scale = scale;
         }
-        public double getHeight(){ return this.height; }
-        public double getScale(){ return this.scale; }
+
+        public double getHeight(){
+            return this.height;
+        }
+
+        public double getScale(){
+            return this.scale;
+        }
     }
 }
