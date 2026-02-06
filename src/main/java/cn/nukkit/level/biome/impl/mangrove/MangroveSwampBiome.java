@@ -9,10 +9,7 @@ public class MangroveSwampBiome extends GrassyBiome {
     public MangroveSwampBiome() {
         super();
         
-        // ELIMINADO: No usamos setters (setCoverId, setSurfaceBlock) porque dan error.
-        // La configuración del suelo la hacemos abajo con los @Override.
-
-        // Populador de árboles (asegúrate de que MangroveTreePopulator esté corregido también)
+        // Configuramos los populadores
         MangroveTreePopulator mangroveTrees = new MangroveTreePopulator();
         mangroveTrees.setBaseAmount(3); 
         this.addPopulator(mangroveTrees);
@@ -30,16 +27,23 @@ public class MangroveSwampBiome extends GrassyBiome {
         return "Mangrove Swamp";
     }
 
-    // SOBRESCRIBIMOS: Esto define el bloque de superficie (lo que pisas)
-    // 1610 es el ID de Mud (Lodo) en Bedrock.
-    @Override
+    // --- CORRECCIÓN: Quitamos @Override y añadimos ambas variantes ---
+
+    // Opción A: Firma estándar (x, z)
     public int getCoverId(int x, int z) {
-        return 1610; 
+        return 1610; // Mud
     }
 
-    // SOBRESCRIBIMOS: Esto define el bloque justo debajo de la superficie (tierra)
-    @Override
     public int getGroundId(int x, int z) {
+        return 1610; // Mud
+    }
+
+    // Opción B: Firma alternativa (x, y, z) que usan algunas versiones
+    public int getCoverId(int x, int y, int z) {
+        return 1610;
+    }
+
+    public int getGroundId(int x, int y, int z) {
         return 1610;
     }
 }
