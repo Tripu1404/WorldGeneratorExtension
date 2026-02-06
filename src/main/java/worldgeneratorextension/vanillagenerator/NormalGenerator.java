@@ -44,10 +44,14 @@ public class NormalGenerator extends Generator {
 
     public static int SEA_LEVEL = 64;
 
-    // IDs locales para evitar errores si BlockID no los tiene actualizados
+    // IDs locales
     private static final int STONE = BlockID.STONE;
     private static final int STILL_WATER = BlockID.STILL_WATER;
-    private static final int DEEPSLATE = BlockID.DEEPSLATE; // Asegúrate de que tu servidor soporte este ID
+    private static final int DIRT = BlockID.DIRT;
+    private static final int GRAVEL = BlockID.GRAVEL;
+    
+    // Asegúrate de que BlockID.DEEPSLATE existe en tu API. Si da error, usa el ID numérico (ej. 653 en algunas versiones)
+    private static final int DEEPSLATE = BlockID.DEEPSLATE; 
 
     private MapLayer[] biomeGrid;
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
@@ -118,7 +122,7 @@ public class NormalGenerator extends Generator {
     }
 
     private final Map<String, Map<String, OctaveGenerator>> octaveCache = Maps.newHashMap();
-    // Aumentamos array para soportar -64 a 256+
+    // Aumentamos array para soportar -64 a 256+ (41 segmentos de 8 bloques = 328 bloques de altura total)
     private final double[][][] density = new double[5][5][41];
     private final GroundGenerator groundGen = new GroundGenerator();
     private final BiomeHeight defaultHeight = BiomeHeight.DEFAULT;
@@ -177,7 +181,6 @@ public class NormalGenerator extends Generator {
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
         this.nukkitRandom.setSeed(this.level.getSeed());
 
-        // Hemos eliminado PopulatorDeepslate porque lo haremos nativo abajo
         this.generationPopulators = ImmutableList.of(
                 new PopulatorCaves()
         );
@@ -198,7 +201,7 @@ public class NormalGenerator extends Generator {
                         new OreType(Block.get(STONE, BlockStone.ANDESITE), 10, 33, 0, 80)
                 }),
                 
-                // Ores de Deepslate
+                // Ores de Deepslate (-64 a 8)
                 new cn.nukkit.level.generator.populator.impl.PopulatorOre(BlockID.DEEPSLATE, new cn.nukkit.level.generator.object.ore.OreType[]{
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COAL_ORE), 1, 13, -4, 8, BlockID.DEEPSLATE),
                         new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COPPER_ORE), 5, 9, -64, 8, BlockID.DEEPSLATE),
@@ -213,7 +216,7 @@ public class NormalGenerator extends Generator {
                 new WaterIcePopulator(),
                 new PopulatorSpring(BlockID.WATER, BlockID.STONE, 15, 8, 255),
                 new PopulatorSpring(BlockID.LAVA, BlockID.STONE, 10, 16, 255),
-                new PopulatorBedrockExtended(-64)
+                new PopulatorBedrockExtended(-64) // Generación de Bedrock en el fondo real
         );
         this.biomeGrid = MapLayer.initialize(level.getSeed(), this.getDimension(), this.getId());
     }
@@ -282,10 +285,9 @@ public class NormalGenerator extends Generator {
 
                 noiseH = (noiseH * 0.2d + avgHeightBase) * baseSize / 8d * 4d + baseSize;
                 
-                // AJUSTE CRÍTICO: Movemos el 'suelo' del ruido hacia arriba para dar espacio a los 64 bloques de deepslate
+                // Mantenemos el ajuste para dar espacio a la profundidad (-64)
                 noiseH += 8.0d; 
 
-                // K loop ampliado a 41
                 for (int k = 0; k < 41; k++) {
                     double nh = (k - noiseH) * stretchY * 128d / 256d / avgHeightScale;
                     if (nh < 0) {
@@ -298,7 +300,7 @@ public class NormalGenerator extends Generator {
                             : noiseD > 1 ? noiseR2 : noiseR + (noiseR2 - noiseR) * noiseD;
                     dens -= nh;
                     index++;
-                    // Ajuste de altura del cielo (37 = 29 + 8)
+                    
                     if (k > 37) {
                         double lowering = (k - 37) / 3d;
                         dens = dens * (1d - lowering) + -10d * lowering;
@@ -331,18 +333,20 @@ public class NormalGenerator extends Generator {
                         for (int m = 0; m < 4; m++) {
                             double dens = d9;
                             for (int n = 0; n < 4; n++) {
-                                // Cálculo de altura real (-64)
+                                // FIX: Cálculo de altura real ajustado a -64
                                 int realY = l + (k << 3) - 64;
                                 
-                                // Lógica de DEEPSLATE vs PIEDRA
+                                // FIX: Lógica de Deepslate corregida con transición suave
                                 int solidBlock = STONE;
                                 if (realY <= 0) {
+                                    // Todo por debajo de Y=0 es Deepslate sólido
                                     solidBlock = DEEPSLATE;
                                 } else if (realY <= 8) {
-                                    // Mezcla rápida pseudo-aleatoria basada en coordenadas
-                                    // Si el valor es bajo, ponemos deepslate, creando efecto de transición
+                                    // Zona de transición (0 a 8): Mezcla determinista
+                                    // Usamos coordenadas para crear un patrón de ruido consistente
                                     int noiseMix = (m + (i << 2) * 3121 + n + (j << 2) * 4523 + realY * 6781) & 15;
-                                    if (noiseMix < (8 - realY) + 2) { 
+                                    // Mientras más cerca de 0, más probable es el Deepslate
+                                    if (noiseMix < (8 - realY) * 2) { 
                                         solidBlock = DEEPSLATE;
                                     }
                                 }
@@ -395,7 +399,6 @@ public class NormalGenerator extends Generator {
         double[] surfaceNoise = octaveGenerator.getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
         for (int sx = 0; sx < sizeX; sx++) {
             for (int sz = 0; sz < sizeZ; sz++) {
-                // GroundGen suele trabajar sobre BaseFullChunk, debería estar bien.
                 GROUND_MAP.getOrDefault(biomes.getBiome(sx, sz), groundGen).generateTerrainColumn(level, chunkData, this.nukkitRandom, cx + sx, cz + sz, biomes.getBiome(sx, sz), surfaceNoise[sx | sz << 4]);
                 chunkData.setBiomeId(sx, sz, biomes.getBiome(sx, sz));
             }
@@ -411,7 +414,6 @@ public class NormalGenerator extends Generator {
 
         Biome.getBiome(chunk.getBiomeId(7, 7)).populateChunk(this.level, chunkX, chunkZ, this.nukkitRandom);
         
-        // Hacemos cast a FullChunk para compatibilidad con BedrockExtended y Ores nuevos
         this.populators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, (FullChunk) chunk));
     }
 
