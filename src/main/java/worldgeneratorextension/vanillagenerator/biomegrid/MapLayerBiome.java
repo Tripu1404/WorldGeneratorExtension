@@ -5,7 +5,19 @@ import cn.nukkit.level.biome.EnumBiome;
 public class MapLayerBiome extends MapLayer {
 
     private static final int[] WARM = new int[]{EnumBiome.DESERT.id, EnumBiome.DESERT.id, EnumBiome.DESERT.id, EnumBiome.SAVANNA.id, EnumBiome.SAVANNA.id, EnumBiome.PLAINS.id};
-    private static final int[] WET = new int[]{EnumBiome.PLAINS.id, EnumBiome.PLAINS.id, EnumBiome.FOREST.id, EnumBiome.BIRCH_FOREST.id, EnumBiome.ROOFED_FOREST.id, EnumBiome.EXTREME_HILLS.id, EnumBiome.SWAMP.id};
+    
+    // MODIFICADO: Se añade 150 (Mangrove) a la lista WET
+    private static final int[] WET = new int[]{
+        EnumBiome.PLAINS.id, 
+        EnumBiome.PLAINS.id, 
+        EnumBiome.FOREST.id, 
+        EnumBiome.BIRCH_FOREST.id, 
+        EnumBiome.ROOFED_FOREST.id, 
+        EnumBiome.EXTREME_HILLS.id, 
+        EnumBiome.SWAMP.id, 
+        150 
+    };
+    
     private static final int[] DRY = new int[]{EnumBiome.PLAINS.id, EnumBiome.FOREST.id, EnumBiome.TAIGA.id, EnumBiome.EXTREME_HILLS.id};
     private static final int[] COLD = new int[]{EnumBiome.ICE_PLAINS.id, EnumBiome.ICE_PLAINS.id, EnumBiome.COLD_TAIGA.id};
     private static final int[] WARM_LARGE = new int[]{EnumBiome.MESA_PLATEAU_F.id, EnumBiome.MESA_PLATEAU_F.id, EnumBiome.MESA_PLATEAU.id};
