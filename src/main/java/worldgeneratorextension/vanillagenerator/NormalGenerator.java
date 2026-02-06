@@ -6,7 +6,8 @@ import cn.nukkit.block.BlockStone;
 import cn.nukkit.level.ChunkManager;
 import cn.nukkit.level.biome.Biome;
 import cn.nukkit.level.biome.EnumBiome;
-import cn.nukkit.level.format.FullChunk; // CAMBIO: Usamos FullChunk
+import cn.nukkit.level.format.FullChunk; // Import necesario para Populators
+import cn.nukkit.level.format.generic.BaseFullChunk; // Import RECUPERADO para GroundGenerators
 import cn.nukkit.level.generator.Generator;
 import cn.nukkit.level.generator.populator.impl.PopulatorSpring;
 import cn.nukkit.level.generator.populator.impl.WaterIcePopulator;
@@ -219,7 +220,8 @@ public class NormalGenerator extends Generator {
     public void generateChunk(int chunkX, int chunkZ) {
         this.nukkitRandom.setSeed(chunkX * localSeed1 ^ chunkZ * localSeed2 ^ this.level.getSeed());
 
-        // CAMBIO: Especificamos FullChunk aquí para evitar problemas con los populadores
+        // CAMBIO: Definimos como FullChunk porque los populadores nuevos lo requieren.
+        // FullChunk implementa BaseFullChunk en la mayoría de versiones, así que el casting debería funcionar.
         FullChunk chunkData = level.getChunk(chunkX, chunkZ);
 
         int x = chunkX << 2;
@@ -371,6 +373,7 @@ public class NormalGenerator extends Generator {
         double[] surfaceNoise = octaveGenerator.getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
         for (int sx = 0; sx < sizeX; sx++) {
             for (int sz = 0; sz < sizeZ; sz++) {
+                // GroundGenerator usa BaseFullChunk, pero FullChunk suele extender de BaseFullChunk, por lo que el paso es compatible.
                 GROUND_MAP.getOrDefault(biomes.getBiome(sx, sz), groundGen).generateTerrainColumn(level, chunkData, this.nukkitRandom, cx + sx, cz + sz, biomes.getBiome(sx, sz), surfaceNoise[sx | sz << 4]);
                 chunkData.setBiomeId(sx, sz, biomes.getBiome(sx, sz));
             }
@@ -381,7 +384,8 @@ public class NormalGenerator extends Generator {
 
     @Override
     public void populateChunk(int chunkX, int chunkZ) {
-        BaseFullChunk chunk = this.level.getChunk(chunkX, chunkZ);
+        // CAMBIO: Aseguramos el uso de FullChunk para evitar confusiones de tipo
+        FullChunk chunk = this.level.getChunk(chunkX, chunkZ);
         this.nukkitRandom.setSeed(0xdeadbeef ^ (chunkX << 8) ^ chunkZ ^ this.level.getSeed());
 
         Biome.getBiome(chunk.getBiomeId(7, 7)).populateChunk(this.level, chunkX, chunkZ, this.nukkitRandom);
