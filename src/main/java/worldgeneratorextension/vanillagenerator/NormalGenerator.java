@@ -28,8 +28,6 @@ import com.google.common.collect.Maps;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import worldgeneratorextension.vanillagenerator.populator.overworld.PopulatorSnowLayers;
-
-// Solo necesitamos el Bedrock, el Deepslate lo haremos nativo
 import worldgeneratorextension.vanillagenerator.populator.PopulatorBedrockExtended;
 
 import java.util.Collections;
@@ -49,9 +47,50 @@ public class NormalGenerator extends Generator {
     private static final int STILL_WATER = BlockID.STILL_WATER;
     private static final int DIRT = BlockID.DIRT;
     private static final int GRAVEL = BlockID.GRAVEL;
-    
-    // Asegúrate de que BlockID.DEEPSLATE existe en tu API. Si da error, usa el ID numérico (ej. 653 en algunas versiones)
-    private static final int DEEPSLATE = BlockID.DEEPSLATE; 
+
+    // --- FIX: DETECCIÓN SEGURA DE DEEPSLATE ---
+    // Esto evita que se genere AIRE si la ID no existe
+    private static int DEEPSLATE_ID;
+
+    static {
+        int foundId = 0;
+        try {
+            // Intento 1: Buscar por nombre interno (Más seguro en forks modernos)
+            foundId = Block.get("deepslate").getId();
+        } catch (Exception e) {
+            // Ignorar fallo
+        }
+
+        if (foundId == 0) {
+            try {
+                // Intento 2: Usar ID numérica común de Bedrock 1.18+
+                foundId = 653; 
+                // Verificación rápida de que 653 no sea aire en tu server específico
+                if (Block.get(653).getId() == 0) foundId = 0;
+            } catch (Exception e) {
+                foundId = 0;
+            }
+        }
+
+        if (foundId == 0) {
+            try {
+                // Intento 3: Constante de la API (Si existe)
+                foundId = BlockID.DEEPSLATE;
+            } catch (NoSuchFieldError e) {
+                // La versión de Nukkit es vieja
+            }
+        }
+
+        // FALLBACK FINAL: Si todo falla, usa STONE. 
+        // Es mejor tener piedra normal abajo que tener vacío.
+        if (foundId == 0) {
+            System.out.println("Warning: Deepslate ID not found using fallback STONE.");
+            foundId = BlockID.STONE;
+        }
+        
+        DEEPSLATE_ID = foundId;
+    }
+    // ------------------------------------------
 
     private MapLayer[] biomeGrid;
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
@@ -122,7 +161,6 @@ public class NormalGenerator extends Generator {
     }
 
     private final Map<String, Map<String, OctaveGenerator>> octaveCache = Maps.newHashMap();
-    // Aumentamos array para soportar -64 a 256+ (41 segmentos de 8 bloques = 328 bloques de altura total)
     private final double[][][] density = new double[5][5][41];
     private final GroundGenerator groundGen = new GroundGenerator();
     private final BiomeHeight defaultHeight = BiomeHeight.DEFAULT;
@@ -201,22 +239,22 @@ public class NormalGenerator extends Generator {
                         new OreType(Block.get(STONE, BlockStone.ANDESITE), 10, 33, 0, 80)
                 }),
                 
-                // Ores de Deepslate (-64 a 8)
-                new cn.nukkit.level.generator.populator.impl.PopulatorOre(BlockID.DEEPSLATE, new cn.nukkit.level.generator.object.ore.OreType[]{
-                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COAL_ORE), 1, 13, -4, 8, BlockID.DEEPSLATE),
-                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COPPER_ORE), 5, 9, -64, 8, BlockID.DEEPSLATE),
-                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_IRON_ORE), 5, 9, -64, 8, BlockID.DEEPSLATE),
-                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_REDSTONE_ORE), 8, 8, -64, 8, BlockID.DEEPSLATE),
-                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_LAPIS_ORE), 6, 6, -64, 8, BlockID.DEEPSLATE),
-                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_GOLD_ORE), 2, 9, -64, 8, BlockID.DEEPSLATE),
-                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_DIAMOND_ORE), 4, 5, -64, 8, BlockID.DEEPSLATE)
+                // Usamos DEEPSLATE_ID aquí también para la seguridad
+                new cn.nukkit.level.generator.populator.impl.PopulatorOre(DEEPSLATE_ID, new cn.nukkit.level.generator.object.ore.OreType[]{
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COAL_ORE), 1, 13, -4, 8, DEEPSLATE_ID),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_COPPER_ORE), 5, 9, -64, 8, DEEPSLATE_ID),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_IRON_ORE), 5, 9, -64, 8, DEEPSLATE_ID),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_REDSTONE_ORE), 8, 8, -64, 8, DEEPSLATE_ID),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_LAPIS_ORE), 6, 6, -64, 8, DEEPSLATE_ID),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_GOLD_ORE), 2, 9, -64, 8, DEEPSLATE_ID),
+                        new cn.nukkit.level.generator.object.ore.OreType(Block.get(BlockID.DEEPSLATE_DIAMOND_ORE), 4, 5, -64, 8, DEEPSLATE_ID)
                 }),
                 
                 new PopulatorSnowLayers(),
                 new WaterIcePopulator(),
                 new PopulatorSpring(BlockID.WATER, BlockID.STONE, 15, 8, 255),
                 new PopulatorSpring(BlockID.LAVA, BlockID.STONE, 10, 16, 255),
-                new PopulatorBedrockExtended(-64) // Generación de Bedrock en el fondo real
+                new PopulatorBedrockExtended(-64)
         );
         this.biomeGrid = MapLayer.initialize(level.getSeed(), this.getDimension(), this.getId());
     }
@@ -333,21 +371,19 @@ public class NormalGenerator extends Generator {
                         for (int m = 0; m < 4; m++) {
                             double dens = d9;
                             for (int n = 0; n < 4; n++) {
-                                // FIX: Cálculo de altura real ajustado a -64
+                                // Cálculo de altura real ajustado a -64
                                 int realY = l + (k << 3) - 64;
                                 
-                                // FIX: Lógica de Deepslate corregida con transición suave
+                                // Lógica de Deepslate corregida con transición suave y ID SEGURA
                                 int solidBlock = STONE;
                                 if (realY <= 0) {
                                     // Todo por debajo de Y=0 es Deepslate sólido
-                                    solidBlock = DEEPSLATE;
+                                    solidBlock = DEEPSLATE_ID;
                                 } else if (realY <= 8) {
-                                    // Zona de transición (0 a 8): Mezcla determinista
-                                    // Usamos coordenadas para crear un patrón de ruido consistente
+                                    // Zona de transición (0 a 8)
                                     int noiseMix = (m + (i << 2) * 3121 + n + (j << 2) * 4523 + realY * 6781) & 15;
-                                    // Mientras más cerca de 0, más probable es el Deepslate
                                     if (noiseMix < (8 - realY) * 2) { 
-                                        solidBlock = DEEPSLATE;
+                                        solidBlock = DEEPSLATE_ID;
                                     }
                                 }
 
@@ -399,6 +435,7 @@ public class NormalGenerator extends Generator {
         double[] surfaceNoise = octaveGenerator.getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
         for (int sx = 0; sx < sizeX; sx++) {
             for (int sz = 0; sz < sizeZ; sz++) {
+                // GroundGen suele trabajar sobre BaseFullChunk, debería estar bien.
                 GROUND_MAP.getOrDefault(biomes.getBiome(sx, sz), groundGen).generateTerrainColumn(level, chunkData, this.nukkitRandom, cx + sx, cz + sz, biomes.getBiome(sx, sz), surfaceNoise[sx | sz << 4]);
                 chunkData.setBiomeId(sx, sz, biomes.getBiome(sx, sz));
             }
@@ -433,7 +470,6 @@ public class NormalGenerator extends Generator {
             gen.setZScale(heightNoiseScaleZ);
             octaves.put("height", gen);
 
-            // Ajustado a 41 para cubrir la altura extendida
             gen = new PerlinOctaveGenerator(seed, 16, 5, 41, 5);
             gen.setXScale(coordinateScale);
             gen.setYScale(heightScale);
