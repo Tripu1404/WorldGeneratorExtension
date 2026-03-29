@@ -28,7 +28,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class NormalGenerator extends Generator {
 
-    // --- CONSTANTES REQUERIDAS POR MAPLAYER Y OTROS PLUGINS ---
+    // --- CONSTANTES DE COMPATIBILIDAD ---
     public static final int TYPE_CHUNKY = 0;
     public static final int TYPE_LARGE_BIOMES = 5;
     public static final int TYPE_AMPLIFIED = 6;
@@ -56,16 +56,27 @@ public class NormalGenerator extends Generator {
     private final Map<String, Map<String, OctaveGenerator>> octaveCache = Maps.newHashMap();
     private final double[][][] density = new double[5][5][41]; 
     private final GroundGenerator groundGen = new GroundGenerator();
+    private final Map<String, Object> options;
 
-    // Constructores requeridos por Nukkit
+    // --- VARIABLES DE ESTADO DEL NIVEL ---
+    private ChunkManager level;
+    private NukkitRandom nukkitRandom;
+    private long localSeed1;
+    private long localSeed2;
+    private List<Populator> generationPopulators = Lists.newArrayList();
+
     public NormalGenerator() { this(Collections.emptyMap()); }
     public NormalGenerator(Map<String, Object> options) { this.options = options; }
-    private final Map<String, Object> options;
 
     @Override public String getName() { return "normal"; }
     @Override public int getId() { return TYPE_INFINITE; }
 
-    // --- SOLUCIÓN AL ERROR DE COMPILACIÓN: getSettings ---
+    // --- MÉTODOS REQUERIDOS POR LA CLASE BASE (RESTAURADOS) ---
+    @Override
+    public ChunkManager getChunkManager() {
+        return this.level;
+    }
+
     @Override
     public Map<String, Object> getSettings() {
         return options != null ? options : Collections.emptyMap();
@@ -147,6 +158,7 @@ public class NormalGenerator extends Generator {
             }
         }
 
+        // Generación de bloques de Piedra
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 4; j++) {
                 for (int k = 0; k < 40; k++) {
@@ -176,6 +188,7 @@ public class NormalGenerator extends Generator {
             }
         }
 
+        // Aplicar Biomas y Capa de Tierra
         int cx = chunkX << 4, cz = chunkZ << 4;
         int[] finalBiomes = this.biomeGrid[0].generateValues(cx, cz, 16, 16);
         double[] sNoise = ((SimplexOctaveGenerator) getWorldOctaves().get("surface")).getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
@@ -232,9 +245,5 @@ public class NormalGenerator extends Generator {
         BiomeHeight(double h, double s) { height = h; scale = s; }
     }
 
-    private List<Populator> generationPopulators = Lists.newArrayList();
-    private ChunkManager level;
-    private NukkitRandom nukkitRandom;
-    private long localSeed1, localSeed2;
     @Override public Vector3 getSpawn() { return new Vector3(0.5, 90, 0.5); }
 }
