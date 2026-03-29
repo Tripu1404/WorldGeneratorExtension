@@ -2,10 +2,14 @@ package worldgeneratorextension.vanillagenerator;
 
 import cn.nukkit.block.Block;
 import cn.nukkit.block.BlockID;
+import cn.nukkit.block.BlockStone;
 import cn.nukkit.level.ChunkManager;
 import cn.nukkit.level.biome.Biome;
+import cn.nukkit.level.biome.EnumBiome;
 import cn.nukkit.level.format.generic.BaseFullChunk;
 import cn.nukkit.level.generator.Generator;
+import cn.nukkit.level.generator.populator.impl.PopulatorSpring;
+import cn.nukkit.level.generator.populator.impl.WaterIcePopulator;
 import cn.nukkit.level.generator.populator.type.Populator;
 import cn.nukkit.math.NukkitRandom;
 import cn.nukkit.math.Vector3;
@@ -14,7 +18,10 @@ import worldgeneratorextension.vanillagenerator.ground.*;
 import worldgeneratorextension.vanillagenerator.noise.PerlinOctaveGenerator;
 import worldgeneratorextension.vanillagenerator.noise.SimplexOctaveGenerator;
 import worldgeneratorextension.vanillagenerator.noise.bukkit.OctaveGenerator;
+import worldgeneratorextension.vanillagenerator.object.OreType;
+import worldgeneratorextension.vanillagenerator.populator.PopulatorOre;
 import worldgeneratorextension.vanillagenerator.populator.overworld.PopulatorCaves;
+import worldgeneratorextension.vanillagenerator.populator.overworld.PopulatorSnowLayers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -28,23 +35,23 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class NormalGenerator extends Generator {
 
-    // --- CONSTANTES DE COMPATIBILIDAD ---
-    public static final int TYPE_CHUNKY = 0;
     public static final int TYPE_LARGE_BIOMES = 5;
     public static final int TYPE_AMPLIFIED = 6;
-    public static int SEA_LEVEL = 64;
-
-    private static final double coordinateScale = 684.412d;
-    private static final double heightScale = 684.412d;
-    private static final double baseSize = 8.5d;
-    private static final double stretchY = 12d;
+    public static int SEA_LEVEL = 64; 
 
     private MapLayer[] biomeGrid;
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
     private static final Int2ObjectMap<GroundGenerator> GROUND_MAP = new Int2ObjectOpenHashMap<>();
     private static final Int2ObjectMap<BiomeHeight> HEIGHT_MAP = new Int2ObjectOpenHashMap<>();
 
+    // Constantes de ruido (Versión 4)
+    private static final double coordinateScale = 684.412d;
+    private static final double heightScale = 684.412d;
+    private static final double baseSize = 8.5d;
+    private static final double stretchY = 12d;
+
     static {
+        // Inicialización de Pesos de Elevación
         for (int x = 0; x < 5; x++) {
             for (int z = 0; z < 5; z++) {
                 ELEVATION_WEIGHT[x][z] = 10d / Math.sqrt((x - 2) * (x - 2) + (z - 2) * (z - 2) + 0.2d);
@@ -56,31 +63,21 @@ public class NormalGenerator extends Generator {
     private final Map<String, Map<String, OctaveGenerator>> octaveCache = Maps.newHashMap();
     private final double[][][] density = new double[5][5][41]; 
     private final GroundGenerator groundGen = new GroundGenerator();
-    private final Map<String, Object> options;
 
-    // --- VARIABLES DE ESTADO DEL NIVEL ---
     private ChunkManager level;
     private NukkitRandom nukkitRandom;
     private long localSeed1;
     private long localSeed2;
     private List<Populator> generationPopulators = Lists.newArrayList();
+    private List<Populator> populators = Lists.newArrayList();
 
     public NormalGenerator() { this(Collections.emptyMap()); }
-    public NormalGenerator(Map<String, Object> options) { this.options = options; }
+    public NormalGenerator(Map<String, Object> options) { }
 
     @Override public String getName() { return "normal"; }
     @Override public int getId() { return TYPE_INFINITE; }
-
-    // --- MÉTODOS REQUERIDOS POR LA CLASE BASE (RESTAURADOS) ---
-    @Override
-    public ChunkManager getChunkManager() {
-        return this.level;
-    }
-
-    @Override
-    public Map<String, Object> getSettings() {
-        return options != null ? options : Collections.emptyMap();
-    }
+    @Override public ChunkManager getChunkManager() { return level; }
+    @Override public Map<String, Object> getSettings() { return Collections.emptyMap(); }
 
     @Override
     public void init(ChunkManager level, NukkitRandom random) {
@@ -89,7 +86,22 @@ public class NormalGenerator extends Generator {
         this.nukkitRandom.setSeed(this.level.getSeed());
         this.localSeed1 = ThreadLocalRandom.current().nextLong();
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
+
         this.generationPopulators = ImmutableList.of(new PopulatorCaves());
+        this.populators = ImmutableList.of(
+                new PopulatorOre(STONE, new OreType[]{
+                        new OreType(Block.get(BlockID.COAL_ORE), 20, 17, 0, 131),
+                        new OreType(Block.get(BlockID.IRON_ORE), 20, 9, 0, 63),
+                        new OreType(Block.get(BlockID.REDSTONE_ORE), 8, 8, 0, 15),
+                        new OreType(Block.get(BlockID.DIAMOND_ORE), 1, 8, 0, 15),
+                        new OreType(Block.get(DIRT), 10, 33, 0, 128),
+                        new OreType(Block.get(GRAVEL), 8, 33, 0, 128)
+                }),
+                new PopulatorSnowLayers(),
+                new WaterIcePopulator(),
+                new PopulatorSpring(BlockID.WATER, BlockID.STONE, 15, 8, 255),
+                new PopulatorSpring(BlockID.LAVA, BlockID.STONE, 10, 16, 255)
+        );
         this.biomeGrid = MapLayer.initialize(level.getSeed(), this.getDimension(), this.getId());
     }
 
@@ -148,6 +160,7 @@ public class NormalGenerator extends Generator {
                     double dens = dD < 0 ? dR : dD > 1 ? dR2 : dR + (dR2 - dR) * dD;
                     
                     dens -= nh;
+                    // Suavizado de techo (Versión 4)
                     if (k > 37) { 
                         double lowering = (k - 37) / 3d;
                         dens = dens * (1d - lowering) + -10d * lowering;
@@ -158,7 +171,7 @@ public class NormalGenerator extends Generator {
             }
         }
 
-        // Generación de bloques de Piedra
+        // --- Generación de Terreno con soporte de capas negativas ---
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 4; j++) {
                 for (int k = 0; k < 40; k++) {
@@ -168,6 +181,7 @@ public class NormalGenerator extends Generator {
 
                     double dy = d1, dy2 = d3;
                     for (int l = 0; l < 8; l++) {
+                        // AQUÍ ESTÁ EL AJUSTE PARA CAPAS NEGATIVAS (Desplazamiento -64)
                         int blockY = (l + (k << 3)) - 64; 
                         double dx = dy, dx2 = dy2;
                         for (int m = 0; m < 4; m++) {
@@ -188,7 +202,7 @@ public class NormalGenerator extends Generator {
             }
         }
 
-        // Aplicar Biomas y Capa de Tierra
+        // Aplicar Biomas y Capa de Tierra (Mezcla v3 y v4)
         int cx = chunkX << 4, cz = chunkZ << 4;
         int[] finalBiomes = this.biomeGrid[0].generateValues(cx, cz, 16, 16);
         double[] sNoise = ((SimplexOctaveGenerator) getWorldOctaves().get("surface")).getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
@@ -197,6 +211,7 @@ public class NormalGenerator extends Generator {
             for (int sz = 0; sz < 16; sz++) {
                 int bId = finalBiomes[sx | sz << 4] & 0xff;
                 chunkData.setBiomeId(sx, sz, bId);
+                // El GroundGenerator debe estar preparado para manejar Y < 0 internamente
                 GROUND_MAP.getOrDefault(bId, groundGen).generateTerrainColumn(level, chunkData, nukkitRandom, cx + sx, cz + sz, bId, sNoise[sx | sz << 4]);
             }
         }
@@ -208,13 +223,21 @@ public class NormalGenerator extends Generator {
     public void populateChunk(int chunkX, int chunkZ) {
         BaseFullChunk chunk = this.level.getChunk(chunkX, chunkZ);
         this.nukkitRandom.setSeed(0xdeadbeef ^ (chunkX << 8) ^ chunkZ ^ this.level.getSeed());
+        
+        // Populadores de bioma (v3)
         Biome.getBiome(chunk.getBiomeId(7, 7)).populateChunk(this.level, chunkX, chunkZ, this.nukkitRandom);
+        
+        // Populadores globales (Ores, nieve, etc.)
+        this.populators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, chunk));
     }
 
     private static void initializeBiomeHeights() {
-        setBH(BiomeHeight.OCEAN, 0, 10, 24, 46); 
-        setBH(BiomeHeight.FLATLANDS, 1, 2, 4, 5, 35);
-        setBH(BiomeHeight.EXTREME_HILLS, 3, 13, 17, 18, 19, 34);
+        setBH(BiomeHeight.OCEAN, EnumBiome.OCEAN.id, EnumBiome.FROZEN_OCEAN.id, EnumBiome.WARM_OCEAN.id, EnumBiome.LUKEWARM_OCEAN.id);
+        setBH(BiomeHeight.DEEP_OCEAN, EnumBiome.DEEP_OCEAN.id, EnumBiome.DEEP_FROZEN_OCEAN.id, EnumBiome.DEEP_WARM_OCEAN.id, EnumBiome.DEEP_LUKEWARM_OCEAN.id);
+        setBH(BiomeHeight.FLATLANDS, EnumBiome.PLAINS.id, EnumBiome.DESERT.id, EnumBiome.ICE_PLAINS.id, EnumBiome.SAVANNA.id);
+        setBH(BiomeHeight.EXTREME_HILLS, EnumBiome.EXTREME_HILLS.id, EnumBiome.EXTREME_HILLS_PLUS.id, EnumBiome.EXTREME_HILLS_M.id);
+        setBH(BiomeHeight.HILLS, EnumBiome.FOREST_HILLS.id, EnumBiome.TAIGA_HILLS.id, EnumBiome.DESERT_HILLS.id);
+        setBH(BiomeHeight.RIVER, EnumBiome.RIVER.id, EnumBiome.FROZEN_RIVER.id);
     }
 
     private static void setBH(BiomeHeight h, int... ids) { for(int id : ids) HEIGHT_MAP.put(id, h); }
@@ -229,6 +252,7 @@ public class NormalGenerator extends Generator {
             octs.put("roughness2", new PerlinOctaveGenerator(seed, 16, 5, 41, 5));
             octs.put("detail", new PerlinOctaveGenerator(seed, 8, 5, 41, 5));
             octs.put("surface", new SimplexOctaveGenerator(seed, 4, 16, 16));
+            
             octs.get("roughness").setXScale(coordinateScale); octs.get("roughness").setYScale(heightScale); octs.get("roughness").setZScale(coordinateScale);
             octs.get("roughness2").setXScale(coordinateScale); octs.get("roughness2").setYScale(heightScale); octs.get("roughness2").setZScale(coordinateScale);
             octaveCache.put(getName(), octs);
@@ -239,8 +263,12 @@ public class NormalGenerator extends Generator {
     private static class BiomeHeight {
         static final BiomeHeight DEFAULT = new BiomeHeight(0.1d, 0.2d);
         static final BiomeHeight OCEAN = new BiomeHeight(-1.0d, 0.1d);
+        static final BiomeHeight DEEP_OCEAN = new BiomeHeight(-1.8d, 0.1d);
         static final BiomeHeight FLATLANDS = new BiomeHeight(0.125d, 0.05d);
         static final BiomeHeight EXTREME_HILLS = new BiomeHeight(1.0d, 0.5d);
+        static final BiomeHeight HILLS = new BiomeHeight(0.45d, 0.3d);
+        static final BiomeHeight RIVER = new BiomeHeight(-0.5d, 0d);
+        
         double height, scale;
         BiomeHeight(double h, double s) { height = h; scale = s; }
     }
