@@ -5,6 +5,7 @@ import cn.nukkit.block.BlockID;
 import cn.nukkit.level.ChunkManager;
 import cn.nukkit.level.format.generic.BaseFullChunk;
 import cn.nukkit.math.NukkitRandom;
+import worldgeneratorextension.vanillagenerator.NormalGenerator;
 import worldgeneratorextension.vanillagenerator.biome.BiomeClimate;
 
 public class GroundGenerator implements BlockID {
@@ -14,8 +15,8 @@ public class GroundGenerator implements BlockID {
     protected int groundMaterial;
     protected int groundData;
 
-    // ID específica para Deepslate en tu versión
-    private static final int DEEPSLATE_ID = 57;
+    // ID de la Deepslate (Pizarra Profunda) para Nukkit
+    private static final int DEEPSLATE_ID = -378; 
 
     public GroundGenerator() {
         setTopMaterial(GRASS);
@@ -23,14 +24,14 @@ public class GroundGenerator implements BlockID {
     }
 
     /**
-     * Genera la columna de terreno con capas de Deepslate corregidas.
+     * Genera la columna de terreno con soporte para capas negativas y Deepslate.
      */
     public void generateTerrainColumn(ChunkManager world, BaseFullChunk chunkData, NukkitRandom random, int chunkX, int chunkZ, int biome, double surfaceNoise) {
-        int seaLevel = 64;
+        int seaLevel = NormalGenerator.SEA_LEVEL; // Basado en la configuración global
 
-        // Configuración de altura para que la Deepslate sea visible
-        int deepslateMax = 30; 
-        int deepslateMin = 20;
+        // Configuración de transición para Deepslate
+        int deepslateMax = 8; 
+        int deepslateMin = 0;
 
         int topMat = this.topMaterial;
         int groundMat = this.groundMaterial;
@@ -41,17 +42,17 @@ public class GroundGenerator implements BlockID {
         int surfaceHeight = Math.max((int) (surfaceNoise / 3.0D + 3.0D + random.nextDouble() * 0.25D), 1);
         int deep = -1;
 
-        for (int y = 255; y >= 0; y--) {
-            // Capa de Bedrock aleatoria
-            if (y <= random.nextBoundedInt(5)) {
+        // Bucle corregido para procesar desde el cielo hasta el nuevo fondo en -64
+        for (int y = 255; y >= -64; y--) {
+            // Generación de Bedrock ajustada al nuevo fondo del mundo
+            if (y <= -64 + random.nextBoundedInt(5)) {
                 chunkData.setBlock(x, y, z, BEDROCK);
             } else {
                 int mat = chunkData.getBlockId(x, y, z);
 
-                // --- LÓGICA DE DEEPSLATE CORREGIDA ---
-                // Si encontramos piedra en las capas bajas, la convertimos
+                // Lógica de Deepslate: Reemplaza la piedra en las nuevas capas profundas
                 if (mat == STONE && y < deepslateMax) {
-                    // Crea un efecto de mezcla orgánica entre piedra y pizarra
+                    // Crea una mezcla orgánica; por debajo de deepslateMin todo es Deepslate
                     if (y <= deepslateMin || random.nextBoundedInt(Math.max(1, y - deepslateMin)) == 0) {
                         mat = DEEPSLATE_ID;
                         chunkData.setBlock(x, y, z, mat);
@@ -72,7 +73,7 @@ public class GroundGenerator implements BlockID {
                             chunkData.setBlock(x, y, z, topMat, this.topData);
                         } else if (y < seaLevel - 8 - surfaceHeight) {
                             topMat = AIR;
-                            // Mantenemos el material base (Piedra o Deepslate)
+                            // Mantiene el material base (Piedra o Deepslate) para el relleno profundo
                             groundMat = mat; 
                             chunkData.setBlock(x, y, z, GRAVEL);
                         } else {
@@ -82,12 +83,14 @@ public class GroundGenerator implements BlockID {
                         deep--;
                         chunkData.setBlock(x, y, z, groundMat, this.groundData);
 
+                        // Soporte para biomas arenosos (arenisca)
                         if (deep == 0 && groundMat == SAND) {
                             deep = random.nextBoundedInt(4) + Math.max(0, y - seaLevel - 1);
                             groundMat = SANDSTONE;
                         }
                     }
                 } else if (mat == Block.STILL_WATER && y == seaLevel - 2 && BiomeClimate.isCold(biome, chunkX, y, chunkZ)) {
+                    // Capa de hielo en biomas fríos
                     chunkData.setBlock(x, y, z, ICE);
                 }
             }
