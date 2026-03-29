@@ -37,11 +37,9 @@ public class NormalGenerator extends Generator {
 
     public static final int TYPE_LARGE_BIOMES = 5;
     public static final int TYPE_AMPLIFIED = 6;
-
     public static int SEA_LEVEL = 64; 
 
     private MapLayer[] biomeGrid;
-
     private static final double[][] ELEVATION_WEIGHT = new double[5][5];
     private static final Int2ObjectMap<GroundGenerator> GROUND_MAP = new Int2ObjectOpenHashMap<>();
     private static final Int2ObjectMap<BiomeHeight> HEIGHT_MAP = new Int2ObjectOpenHashMap<>();
@@ -56,10 +54,6 @@ public class NormalGenerator extends Generator {
     private static final double surfaceScale = 0.0625d;
     private static final double baseSize = 8.5d;
     private static final double stretchY = 12d;
-    private static final double biomeHeightOffset = 0d;    
-    private static final double biomeHeightWeight = 1d;    
-    private static final double biomeScaleOffset = 0d;
-    private static final double biomeScaleWeight = 1d;
 
     static {
         setBiomeHeight(BiomeHeight.OCEAN, EnumBiome.OCEAN.id, EnumBiome.FROZEN_OCEAN.id, EnumBiome.WARM_OCEAN.id, EnumBiome.LUKEWARM_OCEAN.id);
@@ -96,20 +90,17 @@ public class NormalGenerator extends Generator {
     }
 
     private final Map<String, Map<String, OctaveGenerator>> octaveCache = Maps.newHashMap();
-    private final double[][][] density = new double[5][5][41]; // Tamaño corregido a 41
+    private final double[][][] density = new double[5][5][41]; 
     
     private final GroundGenerator groundGen = new GroundGenerator();
     private final BiomeHeight defaultHeight = BiomeHeight.DEFAULT;
 
-    // --- SOLUCIÓN AL ERROR DE CONSTRUCTOR ---
     public NormalGenerator() {
         this(Collections.emptyMap());
     }
 
     public NormalGenerator(Map<String, Object> options) {
-        // Constructor requerido por Nukkit para cargar el generador
     }
-    // -----------------------------------------
 
     private static void setBiomeHeight(BiomeHeight height, int... biomes) {
         for (int biome : biomes) {
@@ -124,17 +115,10 @@ public class NormalGenerator extends Generator {
     private long localSeed1;
     private long localSeed2;
 
-    @Override
-    public int getId() { return TYPE_INFINITE; }
-
-    @Override
-    public ChunkManager getChunkManager() { return level; }
-
-    @Override
-    public String getName() { return "normal"; }
-
-    @Override
-    public Map<String, Object> getSettings() { return Collections.emptyMap(); }
+    @Override public int getId() { return TYPE_INFINITE; }
+    @Override public ChunkManager getChunkManager() { return level; }
+    @Override public String getName() { return "normal"; }
+    @Override public Map<String, Object> getSettings() { return Collections.emptyMap(); }
 
     @Override
     public void init(ChunkManager level, NukkitRandom random) {
@@ -143,29 +127,7 @@ public class NormalGenerator extends Generator {
         this.nukkitRandom.setSeed(this.level.getSeed());
         this.localSeed1 = ThreadLocalRandom.current().nextLong();
         this.localSeed2 = ThreadLocalRandom.current().nextLong();
-
         this.generationPopulators = ImmutableList.of(new PopulatorCaves());
-
-        this.populators = ImmutableList.of(
-                new PopulatorOre(STONE, new OreType[]{
-                        new OreType(Block.get(BlockID.COAL_ORE), 20, 17, 0, 131),
-                        new OreType(Block.get(BlockID.COPPER_ORE), 20, 9, 0, 192),
-                        new OreType(Block.get(BlockID.IRON_ORE), 20, 9, 0, 63),
-                        new OreType(Block.get(BlockID.REDSTONE_ORE), 8, 8, 0, 15),
-                        new OreType(Block.get(BlockID.LAPIS_ORE), 1, 7, 0, 33),
-                        new OreType(Block.get(BlockID.GOLD_ORE), 2, 9, 0, 33),
-                        new OreType(Block.get(BlockID.DIAMOND_ORE), 1, 8, 0, 15),
-                        new OreType(Block.get(DIRT), 10, 33, 0, 128),
-                        new OreType(Block.get(GRAVEL), 8, 33, 0, 128),
-                        new OreType(Block.get(STONE, BlockStone.GRANITE), 10, 33, 0, 80),
-                        new OreType(Block.get(STONE, BlockStone.DIORITE), 10, 33, 0, 80),
-                        new OreType(Block.get(STONE, BlockStone.ANDESITE), 10, 33, 0, 80)
-                }),
-                new PopulatorSnowLayers(),
-                new WaterIcePopulator(),
-                new PopulatorSpring(BlockID.WATER, BlockID.STONE, 15, 8, 255),
-                new PopulatorSpring(BlockID.LAVA, BlockID.STONE, 10, 16, 255)
-        );
         this.biomeGrid = MapLayer.initialize(level.getSeed(), this.getDimension(), this.getId());
     }
 
@@ -178,8 +140,8 @@ public class NormalGenerator extends Generator {
         int z = chunkZ << 2;
 
         int[] biomeGrid = this.biomeGrid[1].generateValues(x - 2, z - 2, 10, 10);
-
         Map<String, OctaveGenerator> octaves = getWorldOctaves();
+        
         double[] heightNoise = ((PerlinOctaveGenerator) octaves.get("height")).getFractalBrownianMotion(x, z, 0.5d, 2d);
         double[] roughnessNoise = ((PerlinOctaveGenerator) octaves.get("roughness")).getFractalBrownianMotion(x, 0, z, 0.5d, 2d);
         double[] roughnessNoise2 = ((PerlinOctaveGenerator) octaves.get("roughness2")).getFractalBrownianMotion(x, 0, z, 0.5d, 2d);
@@ -190,118 +152,89 @@ public class NormalGenerator extends Generator {
 
         for (int i = 0; i < 5; i++) {
             for (int j = 0; j < 5; j++) {
-                double avgHeightScale = 0;
-                double avgHeightBase = 0;
-                double totalWeight = 0;
+                double avgHeightScale = 0, avgHeightBase = 0, totalWeight = 0;
                 int biome = Biome.getBiome(biomeGrid[i + 2 + (j + 2) * 10]).getId();
                 BiomeHeight biomeHeight = HEIGHT_MAP.getOrDefault(biome, defaultHeight);
                 for (int m = 0; m < 5; m++) {
                     for (int n = 0; n < 5; n++) {
                         int nearBiome = Biome.getBiome(biomeGrid[i + m + (j + n) * 10]).getId();
                         BiomeHeight nearBiomeHeight = HEIGHT_MAP.getOrDefault(nearBiome, defaultHeight);
-                        double heightBase = biomeHeightOffset + nearBiomeHeight.getHeight() * biomeHeightWeight;
-                        double heightScale = biomeScaleOffset + nearBiomeHeight.getScale() * biomeScaleWeight;
-                        
+                        double heightBase = nearBiomeHeight.getHeight();
+                        double heightScale = nearBiomeHeight.getScale();
                         double weight = ELEVATION_WEIGHT[m][n] / (heightBase + 2d);
-                        if (nearBiomeHeight.getHeight() > biomeHeight.getHeight()) {
-                            weight *= 0.5d;
-                        }
+                        if (nearBiomeHeight.getHeight() > biomeHeight.getHeight()) weight *= 0.5d;
                         avgHeightScale += heightScale * weight;
                         avgHeightBase += heightBase * weight;
                         totalWeight += weight;
                     }
                 }
-                avgHeightScale /= totalWeight;
-                avgHeightBase /= totalWeight;
+                avgHeightScale /= totalWeight; avgHeightBase /= totalWeight;
                 avgHeightScale = avgHeightScale * 0.9d + 0.1d;
                 avgHeightBase = (avgHeightBase * 4d - 1d) / 8d;
 
                 double noiseH = heightNoise[indexHeight++] / 8000d;
                 if (noiseH < 0) noiseH = Math.abs(noiseH) * 0.3d;
                 noiseH = noiseH * 3d - 2d;
-                if (noiseH < 0) {
-                    noiseH = Math.max(noiseH * 0.5d, -1) / 1.4d * 0.5d;
-                } else {
-                    noiseH = Math.min(noiseH, 1) / 8d;
-                }
-
+                noiseH = noiseH < 0 ? Math.max(noiseH * 0.5d, -1) / 1.4d * 0.5d : Math.min(noiseH, 1) / 8d;
                 noiseH = (noiseH * 0.2d + avgHeightBase) * baseSize / 8d * 4d + baseSize;
                 
                 for (int k = 0; k < 41; k++) {
                     double nh = (k - noiseH) * stretchY * 128d / 256d / avgHeightScale;
                     if (nh < 0) nh *= 4d;
-                    
-                    double noiseR = roughnessNoise[index] / 512d;
-                    double noiseR2 = roughnessNoise2[index] / 512d;
-                    double noiseD = (detailNoise[index] / 10d + 1d) / 2d;
-                    double dens = noiseD < 0 ? noiseR : noiseD > 1 ? noiseR2 : noiseR + (noiseR2 - noiseR) * noiseD;
+                    double dens = (detailNoise[index] / 10d + 1d) / 2d < 0 ? roughnessNoise[index] / 512d : (detailNoise[index] / 10d + 1d) / 2d > 1 ? roughnessNoise2[index] / 512d : (roughnessNoise[index] / 512d) + ((roughnessNoise2[index] / 512d) - (roughnessNoise[index] / 512d)) * ((detailNoise[index] / 10d + 1d) / 2d);
                     dens -= nh;
-                    index++;
-                    if (k > 29) {
-                        double lowering = (k - 29) / 3d;
+                    if (k > 37) { // Techo corregido
+                        double lowering = (k - 37) / 3d;
                         dens = dens * (1d - lowering) + -10d * lowering;
                     }
                     this.density[i][j][k] = dens;
+                    index++;
                 }
             }
         }
-
-        double densityOffset = 0.0;
 
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 4; j++) {
                 for (int k = 0; k < 40; k++) {
-                    double d1 = this.density[i][j][k];
-                    double d2 = this.density[i + 1][j][k];
-                    double d3 = this.density[i][j + 1][k];
-                    double d4 = this.density[i + 1][j + 1][k];
-                    double d5 = (this.density[i][j][k + 1] - d1) / 8;
-                    double d6 = (this.density[i + 1][j][k + 1] - d2) / 8;
-                    double d7 = (this.density[i][j + 1][k + 1] - d3) / 8;
-                    double d8 = (this.density[i + 1][j + 1][k + 1] - d4) / 8;
+                    double d1 = this.density[i][j][k], d2 = this.density[i + 1][j][k];
+                    double d3 = this.density[i][j + 1][k], d4 = this.density[i + 1][j + 1][k];
+                    double d5 = (this.density[i][j][k + 1] - d1) / 8, d6 = (this.density[i + 1][j][k + 1] - d2) / 8;
+                    double d7 = (this.density[i][j + 1][k + 1] - d3) / 8, d8 = (this.density[i + 1][j + 1][k + 1] - d4) / 8;
 
-                    double d9 = d1;
-                    double d10 = d3;
+                    double d9 = d1, d10 = d3;
                     for (int l = 0; l < 8; l++) {
-                        int blockY = (l + (k << 3)) - 64; // Desplazamiento Y = -64
+                        int blockY = (l + (k << 3)) - 64; 
                         double dens = d9;
-                        for (int n = 0; n < 4; n++) {
-                            if (dens > densityOffset) {
-                                chunkData.setBlock(n + (i << 2), blockY, n + (j << 2), STONE);
-                            } else if (blockY < SEA_LEVEL - 1) {
-                                chunkData.setBlock(n + (i << 2), blockY, n + (j << 2), STILL_WATER);
+                        for (int m = 0; m < 4; m++) {
+                            double densZ = dens;
+                            for (int n = 0; n < 4; n++) {
+                                if (densZ > 0.0) {
+                                    chunkData.setBlock(m + (i << 2), blockY, n + (j << 2), STONE);
+                                } else if (blockY < SEA_LEVEL) {
+                                    chunkData.setBlock(m + (i << 2), blockY, n + (j << 2), STILL_WATER);
+                                }
+                                densZ += (d10 - d9) / 4;
                             }
-                            dens += (d10 - d9) / 4;
+                            dens += (d2 - d1) / 4;
                         }
-                        d9 += (d2 - d1) / 4;
-                        d10 += (d4 - d3) / 4;
+                        d9 += d5; d10 += d7;
                     }
-                    d1 += d5;
-                    d3 += d7;
-                    d2 += d6;
-                    d4 += d8;
+                    d1 += d5; d3 += d7; d2 += d6; d4 += d8;
                 }
             }
         }
 
-        int cx = chunkX << 4;
-        int cz = chunkZ << 4;
-
-        BiomeGrid biomes = new BiomeGrid();
+        int cx = chunkX << 4, cz = chunkZ << 4;
         int[] biomeValues = this.biomeGrid[0].generateValues(cx, cz, 16, 16);
-        for (int i = 0; i < biomeValues.length; i++) {
-            biomes.biomes[i] = (byte) biomeValues[i];
-        }
-
-        SimplexOctaveGenerator octaveGenerator = ((SimplexOctaveGenerator) getWorldOctaves().get("surface"));
-        double[] surfaceNoise = octaveGenerator.getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
+        SimplexOctaveGenerator surfaceGen = ((SimplexOctaveGenerator) getWorldOctaves().get("surface"));
+        double[] surfaceNoise = surfaceGen.getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
         for (int sx = 0; sx < 16; sx++) {
             for (int sz = 0; sz < 16; sz++) {
-                GROUND_MAP.getOrDefault(biomes.getBiome(sx, sz), groundGen).generateTerrainColumn(level, chunkData, this.nukkitRandom, cx + sx, cz + sz, biomes.getBiome(sx, sz), surfaceNoise[sx | sz << 4]);
-                chunkData.setBiomeId(sx, sz, biomes.getBiome(sx, sz));
+                int bId = biomeValues[sx | sz << 4] & 0xff;
+                GROUND_MAP.getOrDefault(bId, groundGen).generateTerrainColumn(level, chunkData, this.nukkitRandom, cx + sx, cz + sz, bId, surfaceNoise[sx | sz << 4]);
+                chunkData.setBiomeId(sx, sz, bId);
             }
         }
-
         this.generationPopulators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, chunkData));
     }
 
@@ -310,53 +243,33 @@ public class NormalGenerator extends Generator {
         BaseFullChunk chunk = this.level.getChunk(chunkX, chunkZ);
         this.nukkitRandom.setSeed(0xdeadbeef ^ (chunkX << 8) ^ chunkZ ^ this.level.getSeed());
         Biome.getBiome(chunk.getBiomeId(7, 7)).populateChunk(this.level, chunkX, chunkZ, this.nukkitRandom);
-        this.populators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, chunk));
     }
 
-    @Override
-    public Vector3 getSpawn() { return new Vector3(0.5, 256, 0.5); }
+    @Override public Vector3 getSpawn() { return new Vector3(0.5, 128, 0.5); }
 
     private Map<String, OctaveGenerator> getWorldOctaves() {
         Map<String, OctaveGenerator> octaves = this.octaveCache.get(this.getName());
         if (octaves == null) {
             octaves = Maps.newHashMap();
             NukkitRandom seed = new NukkitRandom(this.level.getSeed());
-
             OctaveGenerator gen = new PerlinOctaveGenerator(seed, 16, 5, 5);
-            gen.setXScale(heightNoiseScaleX);
-            gen.setZScale(heightNoiseScaleZ);
+            gen.setXScale(heightNoiseScaleX); gen.setZScale(heightNoiseScaleZ);
             octaves.put("height", gen);
-
             gen = new PerlinOctaveGenerator(seed, 16, 5, 41, 5);
-            gen.setXScale(coordinateScale);
-            gen.setYScale(heightScale);
-            gen.setZScale(coordinateScale);
+            gen.setXScale(coordinateScale); gen.setYScale(heightScale); gen.setZScale(coordinateScale);
             octaves.put("roughness", gen);
-
             gen = new PerlinOctaveGenerator(seed, 16, 5, 41, 5);
-            gen.setXScale(coordinateScale);
-            gen.setYScale(heightScale);
-            gen.setZScale(coordinateScale);
+            gen.setXScale(coordinateScale); gen.setYScale(heightScale); gen.setZScale(coordinateScale);
             octaves.put("roughness2", gen);
-
             gen = new PerlinOctaveGenerator(seed, 8, 5, 41, 5);
-            gen.setXScale(coordinateScale / detailNoiseScaleX);
-            gen.setYScale(heightScale / detailNoiseScaleY);
-            gen.setZScale(coordinateScale / detailNoiseScaleZ);
+            gen.setXScale(coordinateScale / detailNoiseScaleX); gen.setYScale(heightScale / detailNoiseScaleY); gen.setZScale(coordinateScale / detailNoiseScaleZ);
             octaves.put("detail", gen);
-
             gen = new SimplexOctaveGenerator(seed, 4, 16, 16);
             gen.setScale(surfaceScale);
             octaves.put("surface", gen);
-
             this.octaveCache.put(this.getName(), octaves);
         }
         return octaves;
-    }
-
-    private static class BiomeGrid {
-        public final byte[] biomes = new byte[256];
-        public int getBiome(int x, int z) { return biomes[x | z << 4] & 0xff; }
     }
 
     private static class BiomeHeight {
@@ -383,13 +296,8 @@ public class NormalGenerator extends Generator {
         public static final BiomeHeight OCEAN = new BiomeHeight(-1d, 0.1d);
         public static final BiomeHeight DEEP_OCEAN = new BiomeHeight(-1.8d, 0.1d);
 
-        private final double height;
-        private final double scale;
-
-        BiomeHeight(double height, double scale) {
-            this.height = height;
-            this.scale = scale;
-        }
+        private final double height, scale;
+        BiomeHeight(double height, double scale) { this.height = height; this.scale = scale; }
         public double getHeight() { return height; }
         public double getScale() { return scale; }
     }
