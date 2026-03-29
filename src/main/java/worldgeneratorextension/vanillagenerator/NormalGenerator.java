@@ -65,6 +65,8 @@ public class NormalGenerator extends Generator {
     private static final double biomeScaleWeight = 1d;
 
     static {
+        // --- MODIFICACIÓN: Comentamos los generadores específicos para forzar el uso de nuestro GroundGenerator con Deepslate ---
+        /*
         setBiomeSpecificGround(new GroundGeneratorSandy(), EnumBiome.BEACH.id, EnumBiome.COLD_BEACH.id, EnumBiome.DESERT.id, EnumBiome.DESERT_HILLS.id, EnumBiome.DESERT_M.id);
         setBiomeSpecificGround(new GroundGeneratorRocky(),  EnumBiome.STONE_BEACH.id);
         setBiomeSpecificGround(new GroundGeneratorSnowy(),  EnumBiome.ICE_PLAINS_SPIKES.id);
@@ -78,6 +80,8 @@ public class NormalGenerator extends Generator {
         setBiomeSpecificGround(new GroundGeneratorMesa(GroundGeneratorMesa.MesaType.BRYCE),  EnumBiome.MESA_BRYCE.id);
         setBiomeSpecificGround(new GroundGeneratorMesa(GroundGeneratorMesa.MesaType.FOREST),  EnumBiome.MESA_PLATEAU_F.id,  EnumBiome.MESA_PLATEAU_F_M.id);
         setBiomeSpecificGround(new GroundGeneratorSandOcean(), EnumBiome.WARM_OCEAN.id, EnumBiome.LUKEWARM_OCEAN.id, EnumBiome.DEEP_WARM_OCEAN.id, EnumBiome.DEEP_LUKEWARM_OCEAN.id);
+        */
+        // ----------------------------------------------------------------------------------------------------------
 
         setBiomeHeight(BiomeHeight.OCEAN, EnumBiome.OCEAN.id, EnumBiome.FROZEN_OCEAN.id, EnumBiome.WARM_OCEAN.id, EnumBiome.LUKEWARM_OCEAN.id);
         setBiomeHeight(BiomeHeight.DEEP_OCEAN, EnumBiome.DEEP_OCEAN.id, EnumBiome.DEEP_FROZEN_OCEAN.id, EnumBiome.DEEP_WARM_OCEAN.id, EnumBiome.DEEP_LUKEWARM_OCEAN.id);
@@ -101,7 +105,6 @@ public class NormalGenerator extends Generator {
         setBiomeHeight(BiomeHeight.LOW_SPIKES, EnumBiome.SAVANNA_M.id);
         setBiomeHeight(BiomeHeight.HIGH_SPIKES, EnumBiome.SAVANNA_PLATEAU_M.id);
 
-        // fill a 5x5 array with values that acts as elevation weight on chunk neighboring, this can be viewed as a parabolic field: the center gets the more weight, and the weight decreases as distance increases from the center. This is applied on the lower scale biome grid.
         for (int x = 0; x < 5; x++) {
             for (int z = 0; z < 5; z++) {
                 int sqX = x - 2;
@@ -115,7 +118,10 @@ public class NormalGenerator extends Generator {
 
     private final Map<String, Map<String, OctaveGenerator>> octaveCache = Maps.newHashMap();
     private final double[][][] density = new double[5][5][33];
+    
+    // Instancia del generador principal que hemos modificado
     private final GroundGenerator groundGen = new GroundGenerator();
+    
     private final BiomeHeight defaultHeight = BiomeHeight.DEFAULT;
 
     private static void setBiomeSpecificGround(GroundGenerator gen, int... biomes) {
@@ -205,14 +211,9 @@ public class NormalGenerator extends Generator {
 
         BaseFullChunk chunkData = level.getChunk(chunkX, chunkZ);
 
-        // Scaling chunk x and z coordinates (4x, see below)
         int x = chunkX << 2;
         int z = chunkZ << 2;
 
-        // Get biome grid data at lower res (scaled 4x, at this scale a chunk is 4x4 columns of the biome grid), we are loosing biome detail but saving huge amount of computation.
-        // We need 1 chunk (4 columns) + 1 column for later needed outer edges (1 column) and at least 2 columns on each side to be able to cover every value.
-        // 4 + 1 + 2 + 2 = 9 columns but the biomegrid generator needs a multiple of 2 so we ask 10 columns wide to the biomegrid generator.
-        // This gives a total of 81 biome grid columns to work with, and this includes the chunk neighborhood.
         int[] biomeGrid = this.biomeGrid[1].generateValues(x - 2, z - 2, 10, 10);
 
         Map<String, OctaveGenerator> octaves = getWorldOctaves();
@@ -224,11 +225,6 @@ public class NormalGenerator extends Generator {
         int index = 0;
         int indexHeight = 0;
 
-        // Sampling densities.
-        // Ideally we would sample 512 (4x4x32) values but in reality we need 825 values (5x5x33).
-        // This is because linear interpolation is done later to re-scale so we need right and bottom edge values if we want it to be "seamless".
-        // You can check this picture to have a visualization of how the biomegrid is traversed (2D plan): http://i.imgur.com/s4whlZE.png
-        // The big square grid represents our lower res biomegrid columns, and the very small square grid represents the normal biome grid columns (at block level) and the reason why it's required to re-scale it and do linear interpolation before densities can be used to generate raw terrain.
         for (int i = 0; i < 5; i++) {
             for (int j = 0; j < 5; j++) {
                 double avgHeightScale = 0;
@@ -236,7 +232,6 @@ public class NormalGenerator extends Generator {
                 double totalWeight = 0;
                 int biome = Biome.getBiome(biomeGrid[i + 2 + (j + 2) * 10]).getId();
                 BiomeHeight biomeHeight = HEIGHT_MAP.getOrDefault(biome, defaultHeight);
-                // Sampling an average height base and scale by visiting the neighborhood of the current biomegrid column.
                 for (int m = 0; m < 5; m++) {
                     for (int n = 0; n < 5; n++) {
                         int nearBiome = Biome.getBiome(biomeGrid[i + m + (j + n) * 10]).getId();
@@ -274,7 +269,6 @@ public class NormalGenerator extends Generator {
 
                 noiseH = (noiseH * 0.2d + avgHeightBase) * baseSize / 8d * 4d + baseSize;
                 for (int k = 0; k < 33; k++) {
-                    // density should be lower and lower as we climb up, this gets a height value to subtract from the noise.
                     double nh = (k - noiseH) * stretchY * 128d / 256d / avgHeightScale;
                     if (nh < 0) {
                         nh *= 4d;
@@ -282,14 +276,12 @@ public class NormalGenerator extends Generator {
                     double noiseR = roughnessNoise[index] / 512d;
                     double noiseR2 = roughnessNoise2[index] / 512d;
                     double noiseD = (detailNoise[index] / 10d + 1d) / 2d;
-                    // linear interpolation
                     double dens = noiseD < 0 ? noiseR
                             : noiseD > 1 ? noiseR2 : noiseR + (noiseR2 - noiseR) * noiseD;
                     dens -= nh;
                     index++;
                     if (k > 29) {
                         double lowering = (k - 29) / 3d;
-                        // linear interpolation
                         dens = dens * (1d - lowering) + -10d * lowering;
                     }
                     this.density[i][j][k] = dens;
@@ -297,22 +289,18 @@ public class NormalGenerator extends Generator {
             }
         }
 
-        // Terrain densities are sampled at different resolutions (1/4x on x,z and 1/8x on y by default) so it's needed to re-scale it. Linear interpolation is used to fill in the gaps.
-
         int fill = 0;
-        int afill = 0; //Math.abs(fill);
+        int afill = 0; 
         int seaFill = 0;
         double densityOffset = 0.0;
 
         for (int i = 0; i < 5 - 1; i++) {
             for (int j = 0; j < 5 - 1; j++) {
                 for (int k = 0; k < 33 - 1; k++) {
-                    // 2x2 grid
                     double d1 = this.density[i][j][k];
                     double d2 = this.density[i + 1][j][k];
                     double d3 = this.density[i][j + 1][k];
                     double d4 = this.density[i + 1][j + 1][k];
-                    // 2x2 grid (row above)
                     double d5 = (this.density[i][j][k + 1] - d1) / 8;
                     double d6 = (this.density[i + 1][j][k + 1] - d2) / 8;
                     double d7 = (this.density[i][j + 1][k + 1] - d3) / 8;
@@ -324,9 +312,6 @@ public class NormalGenerator extends Generator {
                         for (int m = 0; m < 4; m++) {
                             double dens = d9;
                             for (int n = 0; n < 4; n++) {
-                                // any density higher than density offset is ground, any density lower or equal to the density offset is air (or water if under the sea level).
-                                // this can be flipped if the mode is negative, so lower or equal to is ground, and higher is air/water and, then data can be shifted by afill the order is air by default, ground, then water.
-                                // they can shift places within each if statement the target is densityOffset + 0, since the default target is 0, so don't get too confused by the naming.
                                 if (afill == 1 || afill == 10 || afill == 13 || afill == 16) {
                                     chunkData.setBlock(m + (i << 2), l + (k << 3), n + (j << 2), STILL_WATER);
                                 } else if (afill == 2 || afill == 9 || afill == 12 || afill == 15) {
@@ -345,15 +330,11 @@ public class NormalGenerator extends Generator {
                                         chunkData.setBlock(m + (i << 2), l + (k << 3), n + (j << 2), STONE);
                                     }
                                 }
-                                // interpolation along z
                                 dens += (d10 - d9) / 4;
                             }
-                            // interpolation along x
                             d9 += (d2 - d1) / 4;
-                            // interpolate along z
                             d10 += (d4 - d3) / 4;
                         }
-                        // interpolation along y
                         d1 += d5;
                         d3 += d7;
                         d2 += d6;
@@ -379,12 +360,12 @@ public class NormalGenerator extends Generator {
         double[] surfaceNoise = octaveGenerator.getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
         for (int sx = 0; sx < sizeX; sx++) {
             for (int sz = 0; sz < sizeZ; sz++) {
+                // Al estar vacío GROUND_MAP para biomas, esto siempre llamará a tu groundGen personalizado
                 GROUND_MAP.getOrDefault(biomes.getBiome(sx, sz), groundGen).generateTerrainColumn(level, chunkData, this.nukkitRandom, cx + sx, cz + sz, biomes.getBiome(sx, sz), surfaceNoise[sx | sz << 4]);
                 chunkData.setBiomeId(sx, sz, biomes.getBiome(sx, sz));
             }
         }
 
-        //populate chunk
         this.generationPopulators.forEach(populator -> populator.populate(this.level, chunkX, chunkZ, this.nukkitRandom, chunkData));
     }
 
@@ -402,12 +383,6 @@ public class NormalGenerator extends Generator {
         return new Vector3(0.5, 256, 0.5);
     }
 
-    /**
-     * Returns the {@link OctaveGenerator} instances for the world, which are
-     * either newly created or retrieved from the cache.
-     *
-     * @return A map of {@link OctaveGenerator}s
-     */
     private Map<String, OctaveGenerator> getWorldOctaves() {
         Map<String, OctaveGenerator> octaves = this.octaveCache.get(this.getName());
         if (octaves == null) {
@@ -446,15 +421,11 @@ public class NormalGenerator extends Generator {
         return octaves;
     }
 
-    /**
-     * A BiomeGrid implementation for chunk generation.
-     */
     private static class BiomeGrid {
 
         public final byte[] biomes = new byte[256];
 
         public int getBiome(int x, int z) {
-            // upcasting is very important to get extended biomes
             return Biome.biomes[biomes[x | z << 4] & 0xff].getId();
         }
 
