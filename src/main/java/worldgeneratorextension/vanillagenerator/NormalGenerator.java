@@ -28,7 +28,12 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class NormalGenerator extends Generator {
 
+    // --- CONSTANTES REQUERIDAS POR MAPLAYER Y OTROS PLUGINS ---
+    public static final int TYPE_CHUNKY = 0;
+    public static final int TYPE_LARGE_BIOMES = 5;
+    public static final int TYPE_AMPLIFIED = 6;
     public static int SEA_LEVEL = 64;
+
     private static final double coordinateScale = 684.412d;
     private static final double heightScale = 684.412d;
     private static final double baseSize = 8.5d;
@@ -52,11 +57,19 @@ public class NormalGenerator extends Generator {
     private final double[][][] density = new double[5][5][41]; 
     private final GroundGenerator groundGen = new GroundGenerator();
 
+    // Constructores requeridos por Nukkit
     public NormalGenerator() { this(Collections.emptyMap()); }
-    public NormalGenerator(Map<String, Object> options) {}
+    public NormalGenerator(Map<String, Object> options) { this.options = options; }
+    private final Map<String, Object> options;
 
     @Override public String getName() { return "normal"; }
     @Override public int getId() { return TYPE_INFINITE; }
+
+    // --- SOLUCIÓN AL ERROR DE COMPILACIÓN: getSettings ---
+    @Override
+    public Map<String, Object> getSettings() {
+        return options != null ? options : Collections.emptyMap();
+    }
 
     @Override
     public void init(ChunkManager level, NukkitRandom random) {
@@ -134,7 +147,6 @@ public class NormalGenerator extends Generator {
             }
         }
 
-        // Generación de la base de Piedra (Stone)
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 4; j++) {
                 for (int k = 0; k < 40; k++) {
@@ -164,7 +176,6 @@ public class NormalGenerator extends Generator {
             }
         }
 
-        // Capa de superficie (Biomas y GroundGenerator)
         int cx = chunkX << 4, cz = chunkZ << 4;
         int[] finalBiomes = this.biomeGrid[0].generateValues(cx, cz, 16, 16);
         double[] sNoise = ((SimplexOctaveGenerator) getWorldOctaves().get("surface")).getFractalBrownianMotion(cx, cz, 0.5d, 0.5d);
@@ -177,7 +188,6 @@ public class NormalGenerator extends Generator {
             }
         }
 
-        // Populadores de generación (Cuevas)
         generationPopulators.forEach(p -> p.populate(level, chunkX, chunkZ, nukkitRandom, chunkData));
     }
 
