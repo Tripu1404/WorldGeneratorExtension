@@ -5,7 +5,6 @@ import cn.nukkit.block.BlockID;
 import cn.nukkit.level.ChunkManager;
 import cn.nukkit.level.format.generic.BaseFullChunk;
 import cn.nukkit.math.NukkitRandom;
-import worldgeneratorextension.vanillagenerator.NormalGenerator;
 import worldgeneratorextension.vanillagenerator.biome.BiomeClimate;
 
 public class GroundGenerator implements BlockID {
@@ -15,23 +14,17 @@ public class GroundGenerator implements BlockID {
     protected int groundMaterial;
     protected int groundData;
 
-    // ID de la Deepslate (Pizarra Profunda) para Nukkit
-    private static final int DEEPSLATE_ID = -378; 
+    private static final int DEEPSLATE_ID = 57;
 
     public GroundGenerator() {
         setTopMaterial(GRASS);
         setGroundMaterial(DIRT);
     }
 
-    /**
-     * Genera la columna de terreno con soporte para capas negativas y Deepslate.
-     */
     public void generateTerrainColumn(ChunkManager world, BaseFullChunk chunkData, NukkitRandom random, int chunkX, int chunkZ, int biome, double surfaceNoise) {
-        int seaLevel = NormalGenerator.SEA_LEVEL; // Basado en la configuración global
-
-        // Configuración de transición para Deepslate
-        int deepslateMax = 8; 
-        int deepslateMin = 0;
+        int seaLevel = 64;
+        int deepslateMax = 30; 
+        int deepslateMin = 20;
 
         int topMat = this.topMaterial;
         int groundMat = this.groundMaterial;
@@ -42,17 +35,15 @@ public class GroundGenerator implements BlockID {
         int surfaceHeight = Math.max((int) (surfaceNoise / 3.0D + 3.0D + random.nextDouble() * 0.25D), 1);
         int deep = -1;
 
-        // Bucle corregido para procesar desde el cielo hasta el nuevo fondo en -64
-        for (int y = 255; y >= -64; y--) {
-            // Generación de Bedrock ajustada al nuevo fondo del mundo
+        for (int y = 255; y >= -64; y--) { // Rango extendido a -64
+            // Capa de Bedrock corregida al fondo real
             if (y <= -64 + random.nextBoundedInt(5)) {
                 chunkData.setBlock(x, y, z, BEDROCK);
             } else {
                 int mat = chunkData.getBlockId(x, y, z);
 
-                // Lógica de Deepslate: Reemplaza la piedra en las nuevas capas profundas
+                // Conversión de Piedra a Deepslate
                 if (mat == STONE && y < deepslateMax) {
-                    // Crea una mezcla orgánica; por debajo de deepslateMin todo es Deepslate
                     if (y <= deepslateMin || random.nextBoundedInt(Math.max(1, y - deepslateMin)) == 0) {
                         mat = DEEPSLATE_ID;
                         chunkData.setBlock(x, y, z, mat);
@@ -73,7 +64,6 @@ public class GroundGenerator implements BlockID {
                             chunkData.setBlock(x, y, z, topMat, this.topData);
                         } else if (y < seaLevel - 8 - surfaceHeight) {
                             topMat = AIR;
-                            // Mantiene el material base (Piedra o Deepslate) para el relleno profundo
                             groundMat = mat; 
                             chunkData.setBlock(x, y, z, GRAVEL);
                         } else {
@@ -82,36 +72,14 @@ public class GroundGenerator implements BlockID {
                     } else if (deep > 0) {
                         deep--;
                         chunkData.setBlock(x, y, z, groundMat, this.groundData);
-
-                        // Soporte para biomas arenosos (arenisca)
-                        if (deep == 0 && groundMat == SAND) {
-                            deep = random.nextBoundedInt(4) + Math.max(0, y - seaLevel - 1);
-                            groundMat = SANDSTONE;
-                        }
                     }
-                } else if (mat == Block.STILL_WATER && y == seaLevel - 2 && BiomeClimate.isCold(biome, chunkX, y, chunkZ)) {
-                    // Capa de hielo en biomas fríos
-                    chunkData.setBlock(x, y, z, ICE);
                 }
             }
         }
     }
 
-    protected final void setTopMaterial(int topMaterial) {
-        this.setTopMaterial(topMaterial, 0);
-    }
-
-    protected final void setTopMaterial(int topMaterial, int topData) {
-        this.topMaterial = topMaterial;
-        this.topData = topData;
-    }
-
-    protected final void setGroundMaterial(int groundMaterial) {
-        this.setGroundMaterial(groundMaterial, 0);
-    }
-
-    protected final void setGroundMaterial(int groundMaterial, int groundData) {
-        this.groundMaterial = groundMaterial;
-        this.groundData = groundData;
-    }
+    protected final void setTopMaterial(int topMaterial, int topData) { this.topMaterial = topMaterial; this.topData = topData; }
+    protected final void setTopMaterial(int topMaterial) { this.setTopMaterial(topMaterial, 0); }
+    protected final void setGroundMaterial(int groundMaterial, int groundData) { this.groundMaterial = groundMaterial; this.groundData = groundData; }
+    protected final void setGroundMaterial(int groundMaterial) { this.setGroundMaterial(groundMaterial, 0); }
 }
