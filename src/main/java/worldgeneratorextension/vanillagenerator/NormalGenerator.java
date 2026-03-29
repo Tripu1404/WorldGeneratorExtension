@@ -96,11 +96,20 @@ public class NormalGenerator extends Generator {
     }
 
     private final Map<String, Map<String, OctaveGenerator>> octaveCache = Maps.newHashMap();
-    // CORRECCIÓN: Tamaño de densidad aumentado a 41
-    private final double[][][] density = new double[5][5][41];
+    private final double[][][] density = new double[5][5][41]; // Tamaño corregido a 41
     
     private final GroundGenerator groundGen = new GroundGenerator();
     private final BiomeHeight defaultHeight = BiomeHeight.DEFAULT;
+
+    // --- SOLUCIÓN AL ERROR DE CONSTRUCTOR ---
+    public NormalGenerator() {
+        this(Collections.emptyMap());
+    }
+
+    public NormalGenerator(Map<String, Object> options) {
+        // Constructor requerido por Nukkit para cargar el generador
+    }
+    // -----------------------------------------
 
     private static void setBiomeHeight(BiomeHeight height, int... biomes) {
         for (int biome : biomes) {
@@ -114,8 +123,6 @@ public class NormalGenerator extends Generator {
     private NukkitRandom nukkitRandom;
     private long localSeed1;
     private long localSeed2;
-
-    public NormalGenerator() {}
 
     @Override
     public int getId() { return TYPE_INFINITE; }
@@ -220,7 +227,6 @@ public class NormalGenerator extends Generator {
 
                 noiseH = (noiseH * 0.2d + avgHeightBase) * baseSize / 8d * 4d + baseSize;
                 
-                // CORRECCIÓN: Bucle hasta 41
                 for (int k = 0; k < 41; k++) {
                     double nh = (k - noiseH) * stretchY * 128d / 256d / avgHeightScale;
                     if (nh < 0) nh *= 4d;
@@ -244,7 +250,6 @@ public class NormalGenerator extends Generator {
 
         for (int i = 0; i < 4; i++) {
             for (int j = 0; j < 4; j++) {
-                // CORRECCIÓN: Bucle hasta 40 (k < 41 - 1)
                 for (int k = 0; k < 40; k++) {
                     double d1 = this.density[i][j][k];
                     double d2 = this.density[i + 1][j][k];
@@ -258,11 +263,9 @@ public class NormalGenerator extends Generator {
                     double d9 = d1;
                     double d10 = d3;
                     for (int l = 0; l < 8; l++) {
-                        // CORRECCIÓN: Definición de blockY con desplazamiento -64
-                        int blockY = (l + (k << 3)) - 64;
+                        int blockY = (l + (k << 3)) - 64; // Desplazamiento Y = -64
                         double dens = d9;
                         for (int n = 0; n < 4; n++) {
-                            // CORRECCIÓN: Uso de blockY en lugar de l + (k << 3)
                             if (dens > densityOffset) {
                                 chunkData.setBlock(n + (i << 2), blockY, n + (j << 2), STONE);
                             } else if (blockY < SEA_LEVEL - 1) {
@@ -324,7 +327,6 @@ public class NormalGenerator extends Generator {
             gen.setZScale(heightNoiseScaleZ);
             octaves.put("height", gen);
 
-            // CORRECCIONES: Uso de 41 en lugar de 33 en los generadores
             gen = new PerlinOctaveGenerator(seed, 16, 5, 41, 5);
             gen.setXScale(coordinateScale);
             gen.setYScale(heightScale);
