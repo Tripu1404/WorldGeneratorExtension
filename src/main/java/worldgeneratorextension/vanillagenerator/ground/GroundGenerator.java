@@ -15,7 +15,7 @@ public class GroundGenerator implements BlockID {
     protected int groundData;
 
     // ID específica para Deepslate en tu versión
-    private static final int DEEPSLATE_ID = -378;
+    private static final int DEEPSLATE_ID = 57;
 
     public GroundGenerator() {
         setTopMaterial(GRASS);
